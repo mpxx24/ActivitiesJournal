@@ -1,0 +1,43 @@
+@model List<ActivitiesJournal.Models.StravaActivity>
+
+@{
+    ViewData["Title"] = "Heatmap";
+    var polylines = Model
+        .Where(a => a.Map?.SummaryPolyline != null)
+        .Select(a => a.Map!.SummaryPolyline!)
+        .ToList();
+    var encodedJson = JsonSerializer.Serialize(polylines);
+}
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="page-title">Heatmap</h1>
+            <p class="text-muted">Most frequently used routes this year</p>
+        </div>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <strong>Error:</strong> @ViewBag.Error
+        </div>
+    }
+
+    @if (polylines.Any())
+    {
+        <div class="row">
+            <div class="col-12">
+                <div id="heatmap-map" class="heatmap-map" data-polylines='@encodedJson'></div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info" role="alert">
+            <h4 class="alert-heading">No routes to show</h4>
+            <p>We couldn't find any activities with route data for this year.</p>
+        </div>
+    }
+</div>
+

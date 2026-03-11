@@ -1,0 +1,17 @@
+@{
+    ViewData["Title"] = "Activities Journal";
+}
+
+<div class="text-center">
+    <h1 class="display-4">My Activities Journal</h1>
+    <p class="lead">Track and view your Strava activities in one place</p>
+    <hr />
+    <div class="mt-4">
+        <a href="@Url.Action("Index", "Activities")" class="btn btn-primary btn-lg me-2">
+            <i class="bi bi-activity"></i> View My Activities
+        </a>
+        <a href="@Url.Action("Authorize", "Strava")" class="btn btn-outline-secondary btn-lg">
+            <i class="bi bi-link-45deg"></i> Connect Strava
+        </a>
+    </div>
+</div>

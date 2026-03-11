@@ -1,0 +1,383 @@
+@model ActivitiesJournal.Models.StravaActivity
+@{
+    ViewData["Title"] = Model?.Name ?? "Activity Details";
+}
+
+@functions {
+    string GetSportIconClass(string? sportType)
+    {
+        return sportType switch
+        {
+            "Run" or "TrailRun" => "bi-person-running",
+            "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide" => "bi-bicycle",
+            "Walk" or "Hike" => "bi-signpost",
+            "Swim" => "bi-droplet",
+            "Workout" or "WeightTraining" => "bi-lightning-charge",
+            _ => "bi-question-circle"
+        };
+    }
+}
+
+<div class="container">
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <strong>Error:</strong> @ViewBag.Error
+        </div>
+    }
+
+    @if (Model != null)
+    {
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="d-flex align-items-center">
+                    <i class="bi @GetSportIconClass(Model.SportType) me-2" title="@Model.SportType"></i>
+                    @Model.Name
+                </h1>
+                <p class="text-muted">
+                    <i class="bi bi-calendar"></i> @Model.StartDateLocal.ToString("MMMM dd, yyyy 'at' HH:mm")
+                    @if (!string.IsNullOrEmpty(Model.LocationCity))
+                    {
+                        <span> • @Model.LocationCity</span>
+                        @if (!string.IsNullOrEmpty(Model.LocationState))
+                        {
+                            <span>, @Model.LocationState</span>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.LocationCountry))
+                        {
+                            <span>, @Model.LocationCountry</span>
+                        }
+                    }
+                </p>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                @if (Model.Map?.SummaryPolyline != null)
+                {
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Route</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="activity-map" id="map-@Model.Id" data-polyline="@Model.Map.SummaryPolyline"></div>
+                        </div>
+                    </div>
+                }
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Activity Overview</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="border rounded p-3">
+                                    <small class="text-muted d-block">Distance</small>
+                                    <h3 class="mb-0">@((Model.Distance / 1000.0).ToString("0.00")) km</h3>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="border rounded p-3">
+                                    <small class="text-muted d-block">Moving Time</small>
+                                    <h3 class="mb-0">@TimeSpan.FromSeconds(Model.MovingTime).ToString(@"hh\:mm\:ss")</h3>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="border rounded p-3">
+                                    <small class="text-muted d-block">Elapsed Time</small>
+                                    <h3 class="mb-0">@TimeSpan.FromSeconds(Model.ElapsedTime).ToString(@"hh\:mm\:ss")</h3>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="border rounded p-3">
+                                    <small class="text-muted d-block">Elevation Gain</small>
+                                    <h3 class="mb-0">@Model.TotalElevationGain m</h3>
+                                </div>
+                            </div>
+                            @if (Model.AverageSpeed > 0)
+                            {
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3">
+                                        <small class="text-muted d-block">Average Speed</small>
+                                        <h3 class="mb-0">@((Model.AverageSpeed * 3.6).ToString("0.00")) km/h</h3>
+                                    </div>
+                                </div>
+                            }
+                            @if (Model.MaxSpeed > 0)
+                            {
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3">
+                                        <small class="text-muted d-block">Max Speed</small>
+                                        <h3 class="mb-0">@((Model.MaxSpeed * 3.6).ToString("0.00")) km/h</h3>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @if (Model.HasHeartrate && Model.AverageHeartrate.HasValue)
+                {
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Heart Rate</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3">
+                                        <small class="text-muted d-block">Average Heart Rate</small>
+                                        <h3 class="mb-0 text-danger">@Model.AverageHeartrate.Value bpm</h3>
+                                    </div>
+                                </div>
+                                @if (Model.MaxHeartrate.HasValue)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="border rounded p-3">
+                                            <small class="text-muted d-block">Max Heart Rate</small>
+                                            <h3 class="mb-0 text-danger">@Model.MaxHeartrate.Value bpm</h3>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (Model.AverageWatts.HasValue)
+                {
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Power</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3">
+                                        <small class="text-muted d-block">Average Power</small>
+                                        <h3 class="mb-0">@Model.AverageWatts.Value W</h3>
+                                    </div>
+                                </div>
+                                @if (Model.WeightedAverageWatts.HasValue)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="border rounded p-3">
+                                            <small class="text-muted d-block">Weighted Avg Power</small>
+                                            <h3 class="mb-0">@Model.WeightedAverageWatts.Value W</h3>
+                                        </div>
+                                    </div>
+                                }
+                                @if (Model.Kilojoules.HasValue)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="border rounded p-3">
+                                            <small class="text-muted d-block">Energy</small>
+                                            <h3 class="mb-0">@Model.Kilojoules.Value kJ</h3>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (Model.ElevHigh.HasValue || Model.ElevLow.HasValue)
+                {
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Elevation</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                @if (Model.ElevHigh.HasValue)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="border rounded p-3">
+                                            <small class="text-muted d-block">Highest Point</small>
+                                            <h3 class="mb-0">@Model.ElevHigh.Value m</h3>
+                                        </div>
+                                    </div>
+                                }
+                                @if (Model.ElevLow.HasValue)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="border rounded p-3">
+                                            <small class="text-muted d-block">Lowest Point</small>
+                                            <h3 class="mb-0">@Model.ElevLow.Value m</h3>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (Model.BestEfforts != null && Model.BestEfforts.Any())
+                {
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Best Efforts</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Distance</th>
+                                            <th>Time</th>
+                                            <th>PR Rank</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var effort in Model.BestEfforts)
+                                        {
+                                            <tr>
+                                                <td>@effort.Name</td>
+                                                <td>@TimeSpan.FromSeconds(effort.ElapsedTime).ToString(@"mm\:ss")</td>
+                                                <td>
+                                                    @if (effort.PrRank.HasValue)
+                                                    {
+                                                        <span class="badge bg-success">PR #@effort.PrRank.Value</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (Model.SplitsMetric != null && Model.SplitsMetric.Any())
+                {
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Splits (Metric)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Split</th>
+                                            <th>Distance (km)</th>
+                                            <th>Time</th>
+                                            <th>Avg Speed (km/h)</th>
+                                            @if (Model.SplitsMetric.Any(s => s.AverageHeartrate.HasValue))
+                                            {
+                                                <th>Avg HR (bpm)</th>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var split in Model.SplitsMetric)
+                                        {
+                                            <tr>
+                                                <td>@split.SplitNumber</td>
+                                                <td>@((split.Distance / 1000.0).ToString("0.00"))</td>
+                                                <td>@TimeSpan.FromSeconds(split.ElapsedTime).ToString(@"mm\:ss")</td>
+                                                <td>@((split.AverageSpeed * 3.6).ToString("0.00"))</td>
+                                                @if (Model.SplitsMetric.Any(s => s.AverageHeartrate.HasValue))
+                                                {
+                                                    <td>@(split.AverageHeartrate?.ToString() ?? "-")</td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Activity Info</h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-5">Type:</dt>
+                            <dd class="col-sm-7">
+                                <i class="bi @GetSportIconClass(Model.SportType) me-1"></i>
+                                @Model.SportType
+                            </dd>
+
+                            <dt class="col-sm-5">ID:</dt>
+                            <dd class="col-sm-7"><small>@Model.Id</small></dd>
+
+                            @if (Model.Gear != null)
+                            {
+                                <dt class="col-sm-5">Gear:</dt>
+                                <dd class="col-sm-7">@Model.Gear.Name</dd>
+                            }
+
+                            <dt class="col-sm-5">Kudos:</dt>
+                            <dd class="col-sm-7">@Model.KudosCount</dd>
+
+                            <dt class="col-sm-5">Comments:</dt>
+                            <dd class="col-sm-7">@Model.CommentCount</dd>
+
+                            <dt class="col-sm-5">Photos:</dt>
+                            <dd class="col-sm-7">@Model.PhotoCount</dd>
+
+                            <dt class="col-sm-5">Achievements:</dt>
+                            <dd class="col-sm-7">@Model.AchievementCount</dd>
+
+                            @if (Model.Calories.HasValue)
+                            {
+                                <dt class="col-sm-5">Calories:</dt>
+                                <dd class="col-sm-7">@Model.Calories.Value</dd>
+                            }
+
+                            @if (Model.SufferScore.HasValue)
+                            {
+                                <dt class="col-sm-5">Suffer Score:</dt>
+                                <dd class="col-sm-7">@Model.SufferScore.Value</dd>
+                            }
+
+                            <dt class="col-sm-5">Trainer:</dt>
+                            <dd class="col-sm-7">@(Model.Trainer ? "Yes" : "No")</dd>
+
+                            <dt class="col-sm-5">Commute:</dt>
+                            <dd class="col-sm-7">@(Model.Commute ? "Yes" : "No")</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.Description))
+                {
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Description</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>@Model.Description</p>
+                        </div>
+                    </div>
+                }
+
+                <div class="card">
+                    <div class="card-body">
+                        <a href="@Url.Action("Index", "Activities")" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to Activities
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning" role="alert">
+            Activity not found.
+        </div>
+        <a href="@Url.Action("Index", "Activities")" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Activities
+        </a>
+    }
+</div>
