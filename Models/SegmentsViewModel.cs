@@ -13,6 +13,10 @@ public class SegmentBestTime
     public string BestActivityName { get; set; } = string.Empty;
     public int AttemptCount { get; set; }
     public List<SegmentAttempt> AllAttempts { get; set; } = new();
+    public double? StartLat { get; set; }
+    public double? StartLng { get; set; }
+    public double? EndLat { get; set; }
+    public double? EndLng { get; set; }
 }
 
 public class SegmentAttempt

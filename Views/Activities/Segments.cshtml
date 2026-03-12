@@ -75,6 +75,9 @@
     <!-- Segment Leaderboard -->
     @if (Model.Segments.Any())
     {
+        <!-- Floating map popup for segment hover -->
+        <div id="seg-map-popup" style="display:none;position:fixed;z-index:9999;width:260px;height:180px;border-radius:8px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.6);pointer-events:none;"></div>
+
         <div class="card">
             <div class="card-header"><h5 class="mb-0"><i class="bi bi-flag text-warning me-2"></i>Your Segment Leaderboard (#5)</h5></div>
             <div class="card-body p-0">
@@ -94,7 +97,15 @@
                     <tbody>
                         @foreach (var seg in Model.Segments)
                         {
-                            <tr>
+                            var hasMap = seg.StartLat.HasValue && seg.StartLng.HasValue;
+                            <tr class="@(hasMap ? "seg-row" : "")"
+                                @if (hasMap)
+                                {
+                                    @:data-slat="@seg.StartLat!.Value.ToString("F6", System.Globalization.CultureInfo.InvariantCulture)"
+                                    @:data-slng="@seg.StartLng!.Value.ToString("F6", System.Globalization.CultureInfo.InvariantCulture)"
+                                    @:data-elat="@(seg.EndLat.HasValue ? seg.EndLat.Value.ToString("F6", System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                    @:data-elng="@(seg.EndLng.HasValue ? seg.EndLng.Value.ToString("F6", System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                }>
                                 <td>@seg.SegmentName</td>
                                 <td class="text-end text-muted small">@((seg.DistanceM / 1000.0).ToString("0.0")) km</td>
                                 <td class="text-end text-muted small">@seg.AverageGrade.ToString("0.1")%</td>
@@ -122,6 +133,76 @@
                 </table>
             </div>
         </div>
+
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script>
+        (function () {
+            const popup = document.getElementById('seg-map-popup');
+            let map = null;
+
+            function initMap() {
+                if (map) return;
+                map = L.map(popup, { zoomControl: false, attributionControl: false });
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    maxZoom: 18
+                }).addTo(map);
+            }
+
+            const startIcon = L.icon ? null : null; // will use circle markers
+
+            let startMarker = null, endMarker = null, line = null;
+
+            function showSegment(row) {
+                const slat = parseFloat(row.dataset.slat);
+                const slng = parseFloat(row.dataset.slng);
+                const elat = row.dataset.elat ? parseFloat(row.dataset.elat) : null;
+                const elng = row.dataset.elng ? parseFloat(row.dataset.elng) : null;
+
+                initMap();
+
+                // Clear previous
+                if (startMarker) { startMarker.remove(); startMarker = null; }
+                if (endMarker)   { endMarker.remove();   endMarker = null; }
+                if (line)        { line.remove();         line = null; }
+
+                startMarker = L.circleMarker([slat, slng], { radius: 7, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 1, weight: 2 }).addTo(map);
+
+                const pts = [[slat, slng]];
+                if (elat !== null && elng !== null) {
+                    endMarker = L.circleMarker([elat, elng], { radius: 7, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1, weight: 2 }).addTo(map);
+                    pts.push([elat, elng]);
+                    line = L.polyline(pts, { color: '#facc15', weight: 3, opacity: 0.8 }).addTo(map);
+                    map.fitBounds(L.latLngBounds(pts), { padding: [20, 20] });
+                } else {
+                    map.setView([slat, slng], 14);
+                }
+                map.invalidateSize();
+            }
+
+            document.querySelectorAll('tr.seg-row').forEach(row => {
+                row.addEventListener('mouseenter', function (e) {
+                    popup.style.display = 'block';
+                    positionPopup(e);
+                    showSegment(row);
+                });
+                row.addEventListener('mousemove', positionPopup);
+                row.addEventListener('mouseleave', function () {
+                    popup.style.display = 'none';
+                });
+            });
+
+            function positionPopup(e) {
+                const gap = 16;
+                let x = e.clientX + gap;
+                let y = e.clientY + gap;
+                if (x + 260 > window.innerWidth)  x = e.clientX - 260 - gap;
+                if (y + 180 > window.innerHeight) y = e.clientY - 180 - gap;
+                popup.style.left = x + 'px';
+                popup.style.top  = y + 'px';
+            }
+        })();
+        </script>
     }
     else if (ViewBag.Error == null)
     {

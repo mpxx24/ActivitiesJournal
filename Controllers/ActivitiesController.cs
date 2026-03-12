@@ -519,6 +519,10 @@ public class ActivitiesController : Controller
                             SegmentName = effort.Segment.Name,
                             DistanceM = effort.Segment.Distance,
                             AverageGrade = effort.Segment.AverageGrade,
+                            StartLat = effort.Segment.StartLatlng?.Count >= 2 ? effort.Segment.StartLatlng[0] : null,
+                            StartLng = effort.Segment.StartLatlng?.Count >= 2 ? effort.Segment.StartLatlng[1] : null,
+                            EndLat = effort.Segment.EndLatlng?.Count >= 2 ? effort.Segment.EndLatlng[0] : null,
+                            EndLng = effort.Segment.EndLatlng?.Count >= 2 ? effort.Segment.EndLatlng[1] : null,
                         };
                         segmentMap[effort.Segment.Id] = seg;
                     }
