@@ -109,6 +109,55 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> PersonalRecords()
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+
+            if (!rides.Any())
+            {
+                return View(new Models.PersonalRecordsViewModel());
+            }
+
+            var longestByDist = rides.MaxBy(a => a.Distance)!;
+            var fastestAvg = rides.Where(a => a.Distance >= 20_000).MaxBy(a => a.AverageSpeed);
+            var mostClimbing = rides.MaxBy(a => a.TotalElevationGain)!;
+            var longestTime = rides.MaxBy(a => a.MovingTime)!;
+            var maxSpeed = rides.MaxBy(a => a.MaxSpeed)!;
+
+            var records = new List<Models.PersonalRecord>
+            {
+                new() { Label = "Longest Ride", Value = $"{longestByDist.Distance / 1000.0:0.00} km", Icon = "bi-rulers", Activity = longestByDist },
+                new() { Label = "Most Time in Saddle", Value = TimeSpan.FromSeconds(longestTime.MovingTime).ToString(@"h\:mm\:ss"), Icon = "bi-clock", Activity = longestTime },
+                new() { Label = "Most Elevation", Value = $"{mostClimbing.TotalElevationGain:0} m", Icon = "bi-triangle", Activity = mostClimbing },
+                new() { Label = "Top Speed (max)", Value = $"{maxSpeed.MaxSpeed * 3.6:0.0} km/h", Icon = "bi-lightning-charge", Activity = maxSpeed },
+            };
+
+            if (fastestAvg != null)
+                records.Insert(1, new() { Label = "Fastest Avg Speed (≥20 km)", Value = $"{fastestAvg.AverageSpeed * 3.6:0.0} km/h", Icon = "bi-speedometer2", Activity = fastestAvg });
+
+            var vm = new Models.PersonalRecordsViewModel
+            {
+                AllTimeRecords = records,
+                Top10Longest = rides.OrderByDescending(a => a.Distance).Take(10).ToList(),
+                Top10Fastest = rides.Where(a => a.Distance >= 20_000).OrderByDescending(a => a.AverageSpeed).Take(10).ToList(),
+                Top10MostClimbing = rides.OrderByDescending(a => a.TotalElevationGain).Take(10).ToList(),
+                TotalRides = rides.Count,
+                TotalDistanceKm = rides.Sum(a => a.Distance) / 1000.0,
+            };
+
+            return View(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading personal records");
+            ViewBag.Error = "Failed to load personal records.";
+            return View(new Models.PersonalRecordsViewModel());
+        }
+    }
+
     public async Task<IActionResult> Heatmap()
     {
         try

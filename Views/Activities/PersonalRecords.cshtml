@@ -1,0 +1,127 @@
+@model ActivitiesJournal.Models.PersonalRecordsViewModel
+@{
+    ViewData["Title"] = "Personal Records";
+}
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="page-title">Personal Records</h1>
+            <p class="text-muted">All-time best performances across @Model.TotalRides rides (@Model.TotalDistanceKm.ToString("0") km total)</p>
+        </div>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger"><strong>Error:</strong> @ViewBag.Error</div>
+    }
+
+    @if (!Model.AllTimeRecords.Any())
+    {
+        <div class="alert alert-info">No ride data found.</div>
+    }
+    else
+    {
+        <div class="row g-3 mb-5">
+            @foreach (var rec in Model.AllTimeRecords)
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="card stat-card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi @rec.Icon fs-4 text-warning me-2"></i>
+                                <div class="stat-label mb-0">@rec.Label</div>
+                            </div>
+                            <div class="stat-value">@rec.Value</div>
+                            @if (rec.Activity != null)
+                            {
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <a asp-controller="Activities" asp-action="Details" asp-route-id="@rec.Activity.Id" class="link-secondary">
+                                            @rec.Activity.Name
+                                        </a>
+                                        &mdash; @rec.Activity.StartDateLocal.ToString("MMM dd, yyyy")
+                                    </small>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-rulers me-2 text-warning"></i>Top 10 Longest Rides</h5></div>
+                    <div class="card-body p-0">
+                        <table class="table table-dark table-striped table-sm mb-0">
+                            <thead><tr><th>#</th><th>Ride</th><th class="text-end">km</th><th class="text-end">Date</th></tr></thead>
+                            <tbody>
+                                @{ int rank = 1; }
+                                @foreach (var a in Model.Top10Longest)
+                                {
+                                    <tr>
+                                        <td class="text-muted">@rank</td>
+                                        <td><a asp-controller="Activities" asp-action="Details" asp-route-id="@a.Id" class="link-light text-decoration-none">@a.Name</a></td>
+                                        <td class="text-end">@((a.Distance / 1000.0).ToString("0.0"))</td>
+                                        <td class="text-end text-muted small">@a.StartDateLocal.ToString("MMM dd, yy")</td>
+                                    </tr>
+                                    rank++;
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-speedometer2 me-2 text-warning"></i>Top 10 Fastest Rides <small class="text-muted fs-6">(≥20 km)</small></h5></div>
+                    <div class="card-body p-0">
+                        <table class="table table-dark table-striped table-sm mb-0">
+                            <thead><tr><th>#</th><th>Ride</th><th class="text-end">km/h</th><th class="text-end">Date</th></tr></thead>
+                            <tbody>
+                                @{ rank = 1; }
+                                @foreach (var a in Model.Top10Fastest)
+                                {
+                                    <tr>
+                                        <td class="text-muted">@rank</td>
+                                        <td><a asp-controller="Activities" asp-action="Details" asp-route-id="@a.Id" class="link-light text-decoration-none">@a.Name</a></td>
+                                        <td class="text-end">@((a.AverageSpeed * 3.6).ToString("0.0"))</td>
+                                        <td class="text-end text-muted small">@a.StartDateLocal.ToString("MMM dd, yy")</td>
+                                    </tr>
+                                    rank++;
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-triangle me-2 text-warning"></i>Top 10 Most Climbing</h5></div>
+                    <div class="card-body p-0">
+                        <table class="table table-dark table-striped table-sm mb-0">
+                            <thead><tr><th>#</th><th>Ride</th><th class="text-end">m</th><th class="text-end">Date</th></tr></thead>
+                            <tbody>
+                                @{ rank = 1; }
+                                @foreach (var a in Model.Top10MostClimbing)
+                                {
+                                    <tr>
+                                        <td class="text-muted">@rank</td>
+                                        <td><a asp-controller="Activities" asp-action="Details" asp-route-id="@a.Id" class="link-light text-decoration-none">@a.Name</a></td>
+                                        <td class="text-end">@a.TotalElevationGain.ToString("0")</td>
+                                        <td class="text-end text-muted small">@a.StartDateLocal.ToString("MMM dd, yy")</td>
+                                    </tr>
+                                    rank++;
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>

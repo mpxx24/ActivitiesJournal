@@ -103,6 +103,21 @@ public class StravaService : IStravaService
         }
     }
 
+    public async Task<List<StravaActivity>> GetAllActivitiesAsync()
+    {
+        var all = new List<StravaActivity>();
+        int page = 1;
+        const int perPage = 200;
+        while (true)
+        {
+            var batch = await GetActivitiesAsync(page, perPage);
+            all.AddRange(batch);
+            if (batch.Count < perPage) break;
+            page++;
+        }
+        return all;
+    }
+
     public async Task<StravaActivity?> GetActivityByIdAsync(long activityId)
     {
         try
