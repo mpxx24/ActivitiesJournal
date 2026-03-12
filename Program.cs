@@ -43,6 +43,7 @@ else
 
 // Register Strava service
 builder.Services.AddHttpClient<ActivitiesJournal.Services.IStravaService, ActivitiesJournal.Services.StravaService>();
+builder.Services.AddSingleton<ActivitiesJournal.Services.GoalsService>();
 
 var app = builder.Build();
 

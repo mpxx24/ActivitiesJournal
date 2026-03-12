@@ -1,0 +1,176 @@
+@model ActivitiesJournal.Models.GoalsViewModel
+@{
+    ViewData["Title"] = "Goals & Challenges";
+}
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="page-title">Goals & Challenges</h1>
+            <p class="text-muted">@Model.Year annual goals and virtual cycling challenges</p>
+        </div>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger"><strong>Error:</strong> @ViewBag.Error</div>
+    }
+
+    <!-- Annual Goals -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-bullseye text-warning me-2"></i>Annual Goals @Model.Year</h5>
+            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#editGoals">
+                <i class="bi bi-pencil me-1"></i>Edit Goals
+            </button>
+        </div>
+        <div class="card-body">
+            @if (Model.Goals.DistanceGoalKm == null && Model.Goals.ElevationGoalM == null && Model.Goals.RidesGoal == null)
+            {
+                <p class="text-muted">No goals set yet. Click <strong>Edit Goals</strong> to set your targets.</p>
+            }
+            else
+            {
+                <div class="row g-4">
+                    @if (Model.Goals.DistanceGoalKm != null)
+                    {
+                        <div class="col-md-4">
+                            <div class="mb-1 d-flex justify-content-between">
+                                <span><i class="bi bi-rulers me-1 text-warning"></i>Distance</span>
+                                <span class="text-muted">@Model.CurrentDistanceKm.ToString("0.0") / @Model.Goals.DistanceGoalKm.Value.ToString("0") km</span>
+                            </div>
+                            <div class="progress mb-1" style="height:18px;">
+                                <div class="progress-bar bg-warning" style="width:@Model.DistancePct.ToString("0.0")%">@Model.DistancePct.ToString("0")%</div>
+                            </div>
+                            @if (Model.DistanceProjection != null) { <small class="text-muted">@Model.DistanceProjection</small> }
+                        </div>
+                    }
+                    @if (Model.Goals.ElevationGoalM != null)
+                    {
+                        <div class="col-md-4">
+                            <div class="mb-1 d-flex justify-content-between">
+                                <span><i class="bi bi-triangle me-1 text-warning"></i>Elevation</span>
+                                <span class="text-muted">@Model.CurrentElevationM.ToString("0") / @Model.Goals.ElevationGoalM.Value.ToString("0") m</span>
+                            </div>
+                            <div class="progress mb-1" style="height:18px;">
+                                <div class="progress-bar bg-info" style="width:@Model.ElevationPct.ToString("0.0")%">@Model.ElevationPct.ToString("0")%</div>
+                            </div>
+                            @if (Model.ElevationProjection != null) { <small class="text-muted">@Model.ElevationProjection</small> }
+                        </div>
+                    }
+                    @if (Model.Goals.RidesGoal != null)
+                    {
+                        <div class="col-md-4">
+                            <div class="mb-1 d-flex justify-content-between">
+                                <span><i class="bi bi-bicycle me-1 text-warning"></i>Rides</span>
+                                <span class="text-muted">@Model.CurrentRides / @Model.Goals.RidesGoal.Value</span>
+                            </div>
+                            <div class="progress mb-1" style="height:18px;">
+                                <div class="progress-bar bg-success" style="width:@Model.RidesPct.ToString("0.0")%">@Model.RidesPct.ToString("0")%</div>
+                            </div>
+                            @if (Model.RidesProjection != null) { <small class="text-muted">@Model.RidesProjection</small> }
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="collapse mt-3" id="editGoals">
+                <form method="post" asp-action="SaveGoals" class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Distance goal (km)</label>
+                        <input type="number" name="distanceGoalKm" class="form-control form-control-sm bg-dark text-light border-secondary"
+                               value="@Model.Goals.DistanceGoalKm" placeholder="e.g. 5000" step="100" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Elevation goal (m)</label>
+                        <input type="number" name="elevationGoalM" class="form-control form-control-sm bg-dark text-light border-secondary"
+                               value="@Model.Goals.ElevationGoalM" placeholder="e.g. 50000" step="1000" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Rides goal</label>
+                        <input type="number" name="ridesGoal" class="form-control form-control-sm bg-dark text-light border-secondary"
+                               value="@Model.Goals.RidesGoal" placeholder="e.g. 150" />
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-warning btn-sm">Save Goals</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Virtual Challenges -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-flag text-warning me-2"></i>Virtual Challenges</h5>
+            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#addChallenge">
+                <i class="bi bi-plus me-1"></i>Add Custom
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="collapse mb-3" id="addChallenge">
+                <form method="post" asp-action="AddChallenge" class="row g-3 align-items-end border rounded p-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-muted small">Challenge name</label>
+                        <input type="text" name="name" class="form-control form-control-sm bg-dark text-light border-secondary" required placeholder="e.g. Ride to Berlin" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Target distance (km)</label>
+                        <input type="number" name="targetKm" class="form-control form-control-sm bg-dark text-light border-secondary" required placeholder="e.g. 1000" step="1" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Count rides from</label>
+                        <input type="date" name="startDate" class="form-control form-control-sm bg-dark text-light border-secondary"
+                               value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-warning btn-sm">Add</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="row g-3">
+                @foreach (var cp in Model.ChallengeProgressList)
+                {
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card @(cp.Completed ? "border-success" : "") h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="mb-0">
+                                        @if (cp.Completed) { <i class="bi bi-check-circle-fill text-success me-1"></i> }
+                                        @cp.Challenge.Name
+                                    </h6>
+                                    <div class="d-flex gap-1">
+                                        <form method="post" asp-action="ResetChallenge" class="d-inline">
+                                            <input type="hidden" name="id" value="@cp.Challenge.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary p-0 px-1" title="Restart from today">
+                                                <i class="bi bi-arrow-counterclockwise"></i>
+                                            </button>
+                                        </form>
+                                        @if (!cp.Challenge.IsPreset)
+                                        {
+                                            <form method="post" asp-action="DeleteChallenge" class="d-inline">
+                                                <input type="hidden" name="id" value="@cp.Challenge.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger p-0 px-1" title="Delete">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between small text-muted mb-1">
+                                    <span>@cp.EarnedKm.ToString("0.0") / @cp.Challenge.TargetKm.ToString("0") km</span>
+                                    <span>@cp.Pct.ToString("0")%</span>
+                                </div>
+                                <div class="progress" style="height:12px;">
+                                    <div class="progress-bar @(cp.Completed ? "bg-success" : "bg-warning")" style="width:@cp.Pct.ToString("0.0")%"></div>
+                                </div>
+                                <small class="text-muted d-block mt-1">Since @cp.Challenge.StartDate.ToString("MMM d, yyyy")</small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
