@@ -21,6 +21,34 @@ var kvName = 'kv${take(uniqueString(resourceGroup().id, appName), 21)}'
 var appServicePlanName = 'plan-${appName}'
 
 // ------------------------------------------------------------
+// Log Analytics Workspace (required for workspace-based App Insights)
+// Free tier: 5 GB/month ingestion — more than enough for a personal app
+// ------------------------------------------------------------
+resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+  name: 'log-${appName}'
+  location: location
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    retentionInDays: 30
+  }
+}
+
+// ------------------------------------------------------------
+// Application Insights (workspace-based)
+// ------------------------------------------------------------
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: 'appi-${appName}'
+  location: location
+  kind: 'web'
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logAnalytics.id
+  }
+}
+
+// ------------------------------------------------------------
 // App Service Plan — B1 Basic (Linux)
 // ~€11/month, no compute-time quota, supports Always On
 // ------------------------------------------------------------
@@ -87,6 +115,14 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
           name: 'Strava__RedirectUri'
           value: 'https://${appName}.azurewebsites.net/Strava/Callback'
         }
+        {
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: appInsights.properties.ConnectionString
+        }
+        {
+          name: 'ApplicationInsightsAgent_EXTENSION_VERSION'
+          value: '~3'
+        }
       ]
     }
   }
@@ -152,3 +188,5 @@ resource kvDeployerRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-
 output appServiceUrl string = 'https://${appService.properties.defaultHostName}'
 output keyVaultName string = keyVault.name
 output appServiceName string = appService.name
+output appInsightsName string = appInsights.name
+output appInsightsConnectionString string = appInsights.properties.ConnectionString

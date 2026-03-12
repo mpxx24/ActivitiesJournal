@@ -3,7 +3,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddMemoryCache();
-builder.Services.AddApplicationInsightsTelemetry();
+
+// App Insights: only enable when connection string is configured (set via APPLICATIONINSIGHTS_CONNECTION_STRING app setting)
+var appInsightsConnStr = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+if (!string.IsNullOrEmpty(appInsightsConnStr))
+    builder.Services.AddApplicationInsightsTelemetry();
 
 // Ensure environment variables are loaded (they should be by default, but let's be explicit)
 // The configuration system automatically reads:
