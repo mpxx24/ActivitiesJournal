@@ -19,6 +19,10 @@ public class StravaService : IStravaService
 
     private static readonly TimeSpan ListCacheDuration = TimeSpan.FromHours(1);
     private static readonly TimeSpan DetailCacheDuration = TimeSpan.FromHours(1);
+    private static string SegmentPolyCacheKey(long id) => $"segment_poly_{id}";
+
+    private record SegmentDetailResponse([property: System.Text.Json.Serialization.JsonPropertyName("map")] SegmentMapDetail? Map);
+    private record SegmentMapDetail([property: System.Text.Json.Serialization.JsonPropertyName("polyline")] string? Polyline);
 
     public StravaService(IOptions<StravaConfig> config, HttpClient httpClient, IMemoryCache cache, ILogger<StravaService> logger)
     {
@@ -315,6 +319,40 @@ public class StravaService : IStravaService
         {
             _logger.LogError(ex, "Error exchanging authorization code for access token");
             throw;
+        }
+    }
+
+    public async Task<string?> GetSegmentPolylineAsync(long segmentId)
+    {
+        var cacheKey = SegmentPolyCacheKey(segmentId);
+        if (_cache.TryGetValue(cacheKey, out string? cached))
+            return cached;
+
+        try
+        {
+            var response = await _httpClient.GetAsync($"segments/{segmentId}");
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                await RefreshAccessTokenAsync();
+                response = await _httpClient.GetAsync($"segments/{segmentId}");
+            }
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Could not fetch segment {SegmentId}: {Status}", segmentId, response.StatusCode);
+                return null;
+            }
+            var content = await response.Content.ReadAsStringAsync();
+            var detail = JsonSerializer.Deserialize<SegmentDetailResponse>(content,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var polyline = detail?.Map?.Polyline;
+            // Cache permanently — segment shapes never change
+            _cache.Set(cacheKey, polyline, new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
+            return polyline;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching segment polyline for {SegmentId}", segmentId);
+            return null;
         }
     }
 

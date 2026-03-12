@@ -17,6 +17,7 @@ public class SegmentBestTime
     public double? StartLng { get; set; }
     public double? EndLat { get; set; }
     public double? EndLng { get; set; }
+    public string? Polyline { get; set; }
 }
 
 public class SegmentAttempt

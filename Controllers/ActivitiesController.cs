@@ -573,6 +573,18 @@ public class ActivitiesController : Controller
                 row.History = row.History.OrderBy(h => h.Date).ToList();
             }
 
+            // Fetch segment polylines in parallel (cached permanently after first load)
+            var polySem = new SemaphoreSlim(5);
+            var polyTasks = segmentMap.Values
+                .Where(s => s.StartLat.HasValue)
+                .Select(async seg =>
+                {
+                    await polySem.WaitAsync();
+                    try { seg.Polyline = await _stravaService.GetSegmentPolylineAsync(seg.SegmentId); }
+                    finally { polySem.Release(); }
+                });
+            await Task.WhenAll(polyTasks);
+
             var segVm = new Models.SegmentsViewModel
             {
                 Segments = segmentMap.Values.OrderByDescending(s => s.AttemptCount).ThenBy(s => s.SegmentName).ToList(),

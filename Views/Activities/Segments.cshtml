@@ -105,6 +105,10 @@
                                     @:data-slng="@seg.StartLng!.Value.ToString("F6", System.Globalization.CultureInfo.InvariantCulture)"
                                     @:data-elat="@(seg.EndLat.HasValue ? seg.EndLat.Value.ToString("F6", System.Globalization.CultureInfo.InvariantCulture) : "")"
                                     @:data-elng="@(seg.EndLng.HasValue ? seg.EndLng.Value.ToString("F6", System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                    if (!string.IsNullOrEmpty(seg.Polyline))
+                                    {
+                                        @:data-polyline="@Html.Raw(System.Text.Json.JsonSerializer.Serialize(seg.Polyline))"
+                                    }
                                 }>
                                 <td>@seg.SegmentName</td>
                                 <td class="text-end text-muted small">@((seg.DistanceM / 1000.0).ToString("0.0")) km</td>
@@ -149,7 +153,21 @@
                 }).addTo(map);
             }
 
-            const startIcon = L.icon ? null : null; // will use circle markers
+            // Decode Google encoded polyline format
+            function decodePolyline(encoded) {
+                const pts = [];
+                let i = 0, lat = 0, lng = 0;
+                while (i < encoded.length) {
+                    let b, shift = 0, result = 0;
+                    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+                    shift = 0; result = 0;
+                    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+                    pts.push([lat / 1e5, lng / 1e5]);
+                }
+                return pts;
+            }
 
             let startMarker = null, endMarker = null, line = null;
 
@@ -158,6 +176,7 @@
                 const slng = parseFloat(row.dataset.slng);
                 const elat = row.dataset.elat ? parseFloat(row.dataset.elat) : null;
                 const elng = row.dataset.elng ? parseFloat(row.dataset.elng) : null;
+                const encodedPoly = row.dataset.polyline ? JSON.parse(row.dataset.polyline) : null;
 
                 initMap();
 
@@ -168,14 +187,22 @@
 
                 startMarker = L.circleMarker([slat, slng], { radius: 7, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 1, weight: 2 }).addTo(map);
 
-                const pts = [[slat, slng]];
-                if (elat !== null && elng !== null) {
-                    endMarker = L.circleMarker([elat, elng], { radius: 7, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1, weight: 2 }).addTo(map);
-                    pts.push([elat, elng]);
-                    line = L.polyline(pts, { color: '#facc15', weight: 3, opacity: 0.8 }).addTo(map);
-                    map.fitBounds(L.latLngBounds(pts), { padding: [20, 20] });
+                if (encodedPoly) {
+                    const pts = decodePolyline(encodedPoly);
+                    line = L.polyline(pts, { color: '#facc15', weight: 3, opacity: 0.9 }).addTo(map);
+                    if (elat !== null && elng !== null)
+                        endMarker = L.circleMarker([elat, elng], { radius: 7, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1, weight: 2 }).addTo(map);
+                    map.fitBounds(line.getBounds(), { padding: [16, 16] });
                 } else {
-                    map.setView([slat, slng], 14);
+                    const pts = [[slat, slng]];
+                    if (elat !== null && elng !== null) {
+                        endMarker = L.circleMarker([elat, elng], { radius: 7, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1, weight: 2 }).addTo(map);
+                        pts.push([elat, elng]);
+                        line = L.polyline(pts, { color: '#facc15', weight: 3, opacity: 0.8, dashArray: '6 4' }).addTo(map);
+                        map.fitBounds(L.latLngBounds(pts), { padding: [20, 20] });
+                    } else {
+                        map.setView([slat, slng], 14);
+                    }
                 }
                 map.invalidateSize();
             }
