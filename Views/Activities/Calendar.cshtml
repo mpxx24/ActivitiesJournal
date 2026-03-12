@@ -1,0 +1,115 @@
+@model ActivitiesJournal.Models.CalendarViewModel
+@{
+    ViewData["Title"] = "Activity Calendar";
+    var monthNames = new[] { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+}
+
+<div class="container-fluid">
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h1 class="page-title">Activity Calendar @Model.Year</h1>
+            <p class="text-muted">@Model.TotalRides rides &middot; @Model.TotalDistanceKm km &middot; @Model.TotalElevationM m climbing &middot; @Model.ActiveDays active days</p>
+        </div>
+        <div class="col-auto">
+            <form method="get" class="d-flex gap-2 align-items-center">
+                <label class="text-muted">Year:</label>
+                <select name="year" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()">
+                    @foreach (var y in Model.AvailableYears)
+                    {
+                        <option value="@y" selected="@(y == Model.Year)">@y</option>
+                    }
+                </select>
+            </form>
+        </div>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger"><strong>Error:</strong> @ViewBag.Error</div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="calendar-grid">
+                @for (int month = 1; month <= 12; month++)
+                {
+                    var firstDay = new DateTime(Model.Year, month, 1);
+                    var daysInMonth = DateTime.DaysInMonth(Model.Year, month);
+                    var startDow = (int)firstDay.DayOfWeek; // 0=Sun
+                    <div class="cal-month mb-4">
+                        <div class="cal-month-label text-warning fw-semibold mb-2">@monthNames[month - 1]</div>
+                        <div class="cal-week-grid">
+                            @* Day of week headers *@
+                            @foreach (var d in new[] { "S", "M", "T", "W", "T", "F", "S" })
+                            {
+                                <div class="cal-dow-label">@d</div>
+                            }
+                            @* Empty cells before first day *@
+                            @for (int i = 0; i < startDow; i++)
+                            {
+                                <div class="cal-day cal-day-empty"></div>
+                            }
+                            @* Day cells *@
+                            @for (int day = 1; day <= daysInMonth; day++)
+                            {
+                                var date = new DateTime(Model.Year, month, day);
+                                Model.DayData.TryGetValue(date, out var data);
+                                var level = data?.Level ?? 0;
+                                var title = data != null
+                                    ? $"{data.RideCount} ride(s) · {data.DistanceKm} km · {data.ElevationM} m elev"
+                                    : "No ride";
+                                <div class="cal-day cal-day-level-@level" title="@date.ToString("MMM d") — @title">
+                                    <span class="cal-day-num">@day</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="d-flex align-items-center gap-2 mt-3">
+                <small class="text-muted">Less</small>
+                <div class="cal-day cal-day-level-0" style="width:16px;height:16px;border-radius:3px;"></div>
+                <div class="cal-day cal-day-level-1" style="width:16px;height:16px;border-radius:3px;"></div>
+                <div class="cal-day cal-day-level-2" style="width:16px;height:16px;border-radius:3px;"></div>
+                <div class="cal-day cal-day-level-3" style="width:16px;height:16px;border-radius:3px;"></div>
+                <div class="cal-day cal-day-level-4" style="width:16px;height:16px;border-radius:3px;"></div>
+                <small class="text-muted">More</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<style>
+.calendar-grid { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+.cal-month { min-width: 200px; }
+.cal-month-label { font-size: 0.9rem; }
+.cal-week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.cal-dow-label { font-size: 0.6rem; color: #6c757d; text-align: center; padding-bottom: 2px; }
+.cal-day { aspect-ratio: 1; border-radius: 3px; position: relative; cursor: default; }
+.cal-day-num { font-size: 0.55rem; position: absolute; top: 1px; left: 2px; color: rgba(255,255,255,0.4); line-height: 1; }
+.cal-day-empty { background: transparent; }
+.cal-day-level-0 { background: #1e2124; }
+.cal-day-level-1 { background: #1a4a2e; }
+.cal-day-level-2 { background: #2e7d45; }
+.cal-day-level-3 { background: #4caf50; }
+.cal-day-level-4 { background: #8bc34a; }
+.cal-day[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 120%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #212529;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    z-index: 100;
+    pointer-events: none;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+</style>
+}

@@ -109,6 +109,62 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> Calendar(int? year = null)
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+
+            var availableYears = rides.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
+            int selectedYear = year ?? DateTime.Now.Year;
+
+            var yearRides = rides.Where(a => a.StartDateLocal.Year == selectedYear).ToList();
+
+            var grouped = yearRides
+                .GroupBy(a => a.StartDateLocal.Date)
+                .ToDictionary(g => g.Key, g => new
+                {
+                    Count = g.Count(),
+                    Dist = g.Sum(a => a.Distance) / 1000.0,
+                    Elev = (double)g.Sum(a => a.TotalElevationGain),
+                });
+
+            double maxDist = grouped.Values.Any() ? grouped.Values.Max(v => v.Dist) : 1;
+
+            var dayData = grouped.ToDictionary(kv => kv.Key, kv => new Models.CalendarDayData
+            {
+                Date = kv.Key,
+                RideCount = kv.Value.Count,
+                DistanceKm = Math.Round(kv.Value.Dist, 1),
+                ElevationM = Math.Round(kv.Value.Elev, 0),
+                Level = kv.Value.Dist <= 0 ? 0
+                      : kv.Value.Dist < maxDist * 0.25 ? 1
+                      : kv.Value.Dist < maxDist * 0.50 ? 2
+                      : kv.Value.Dist < maxDist * 0.75 ? 3 : 4,
+            });
+
+            var vm = new Models.CalendarViewModel
+            {
+                Year = selectedYear,
+                AvailableYears = availableYears,
+                DayData = dayData,
+                TotalRides = yearRides.Count,
+                TotalDistanceKm = Math.Round(yearRides.Sum(a => a.Distance) / 1000.0, 1),
+                TotalElevationM = Math.Round(yearRides.Sum(a => (double)a.TotalElevationGain), 0),
+                ActiveDays = dayData.Count,
+            };
+
+            return View(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading calendar");
+            ViewBag.Error = "Failed to load calendar data.";
+            return View(new Models.CalendarViewModel { Year = DateTime.Now.Year });
+        }
+    }
+
     public async Task<IActionResult> DayInHistory()
     {
         try
