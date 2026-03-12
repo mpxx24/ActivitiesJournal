@@ -109,6 +109,89 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> DayInHistory()
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+
+            var today = DateTime.Now;
+
+            // Same day across years (excluding current year)
+            var byYear = rides
+                .Where(a => a.StartDateLocal.Month == today.Month && a.StartDateLocal.Day == today.Day && a.StartDateLocal.Year != today.Year)
+                .GroupBy(a => a.StartDateLocal.Year)
+                .OrderByDescending(g => g.Key)
+                .Select(g => (g.Key, g.OrderByDescending(a => a.StartDateLocal).ToList()))
+                .ToList();
+
+            // Streak calculation: days that have at least one ride
+            var rideDates = rides
+                .Select(a => a.StartDateLocal.Date)
+                .Distinct()
+                .OrderByDescending(d => d)
+                .ToHashSet();
+
+            int currentStreak = 0;
+            var check = today.Date;
+            while (rideDates.Contains(check))
+            {
+                currentStreak++;
+                check = check.AddDays(-1);
+            }
+
+            // Longest streak
+            var allDates = rideDates.OrderBy(d => d).ToList();
+            int longest = 0, streakLen = 1;
+            DateTime streakStart = allDates.FirstOrDefault(), longestStart = allDates.FirstOrDefault(), longestEnd = allDates.FirstOrDefault();
+            streakStart = allDates.FirstOrDefault();
+
+            for (int i = 1; i < allDates.Count; i++)
+            {
+                if ((allDates[i] - allDates[i - 1]).Days == 1)
+                {
+                    streakLen++;
+                }
+                else
+                {
+                    if (streakLen > longest)
+                    {
+                        longest = streakLen;
+                        longestStart = streakStart;
+                        longestEnd = allDates[i - 1];
+                    }
+                    streakLen = 1;
+                    streakStart = allDates[i];
+                }
+            }
+            if (streakLen > longest)
+            {
+                longest = streakLen;
+                longestStart = streakStart;
+                longestEnd = allDates.LastOrDefault();
+            }
+
+            var vm = new Models.DayInHistoryViewModel
+            {
+                Today = today,
+                ByYear = byYear,
+                CurrentStreakDays = currentStreak,
+                LongestStreakDays = longest,
+                LongestStreakStart = longestStart,
+                LongestStreakEnd = longestEnd,
+            };
+
+            return View(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading day in history");
+            ViewBag.Error = "Failed to load data.";
+            return View(new Models.DayInHistoryViewModel { Today = DateTime.Now });
+        }
+    }
+
     public async Task<IActionResult> MonthComparison(int? year = null)
     {
         try

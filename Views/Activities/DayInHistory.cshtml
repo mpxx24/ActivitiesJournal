@@ -1,0 +1,96 @@
+@model ActivitiesJournal.Models.DayInHistoryViewModel
+@{
+    ViewData["Title"] = "Day in History";
+}
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="page-title">On This Day <span class="text-warning">@Model.Today.ToString("MMMM d")</span></h1>
+            <p class="text-muted">Your rides on this date across all years</p>
+        </div>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger"><strong>Error:</strong> @ViewBag.Error</div>
+    }
+
+    <!-- Streak cards -->
+    <div class="row g-3 mb-5">
+        <div class="col-md-6">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-1">
+                        <i class="bi bi-fire fs-4 text-warning me-2"></i>
+                        <div class="stat-label mb-0">Current Riding Streak</div>
+                    </div>
+                    <div class="stat-value">@Model.CurrentStreakDays day@(Model.CurrentStreakDays != 1 ? "s" : "")</div>
+                    @if (Model.CurrentStreakDays == 0)
+                    {
+                        <small class="text-muted">No ride today yet</small>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-1">
+                        <i class="bi bi-trophy fs-4 text-warning me-2"></i>
+                        <div class="stat-label mb-0">Longest Riding Streak</div>
+                    </div>
+                    <div class="stat-value">@Model.LongestStreakDays day@(Model.LongestStreakDays != 1 ? "s" : "")</div>
+                    @if (Model.LongestStreakDays > 0)
+                    {
+                        <small class="text-muted">@Model.LongestStreakStart.ToString("MMM d, yyyy") – @Model.LongestStreakEnd.ToString("MMM d, yyyy")</small>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!Model.ByYear.Any())
+    {
+        <div class="alert alert-info">No rides recorded on @Model.Today.ToString("MMMM d") in previous years.</div>
+    }
+    else
+    {
+        @foreach (var (year, activities) in Model.ByYear)
+        {
+            <div class="mb-4">
+                <h4 class="text-warning mb-3">@year</h4>
+                <div class="row g-3">
+                    @foreach (var a in activities)
+                    {
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <a asp-controller="Activities" asp-action="Details" asp-route-id="@a.Id" class="link-light text-decoration-none">
+                                            <i class="bi bi-bicycle me-1"></i>@a.Name
+                                        </a>
+                                    </h6>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-4">
+                                            <small class="text-muted d-block">Distance</small>
+                                            <strong>@((a.Distance / 1000.0).ToString("0.0")) km</strong>
+                                        </div>
+                                        <div class="col-4">
+                                            <small class="text-muted d-block">Elevation</small>
+                                            <strong>@a.TotalElevationGain.ToString("0") m</strong>
+                                        </div>
+                                        <div class="col-4">
+                                            <small class="text-muted d-block">Avg Speed</small>
+                                            <strong>@((a.AverageSpeed * 3.6).ToString("0.0")) km/h</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>

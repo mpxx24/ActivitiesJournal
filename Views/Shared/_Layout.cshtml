@@ -54,6 +54,11 @@
                                 <i class="bi bi-bar-chart me-1"></i> Month vs Month
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Activities" asp-action="DayInHistory">
+                                <i class="bi bi-calendar-event me-1"></i> On This Day
+                            </a>
+                        </li>
                         @if (string.IsNullOrEmpty(StravaOptions.Value.AccessToken))
                         {
                             <li class="nav-item ms-sm-auto">
