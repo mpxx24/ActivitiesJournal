@@ -484,6 +484,115 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> Segments(int count = 30)
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide")
+                           .OrderByDescending(a => a.StartDateLocal).ToList();
+
+            int fetchCount = Math.Min(count, rides.Count);
+            var toFetch = rides.Take(fetchCount).ToList();
+
+            // Parallel fetch with concurrency cap to respect rate limits
+            var semaphore = new SemaphoreSlim(5, 5);
+            var details = await Task.WhenAll(toFetch.Select(async r =>
+            {
+                await semaphore.WaitAsync();
+                try { return await _stravaService.GetActivityByIdAsync(r.Id); }
+                finally { semaphore.Release(); }
+            }));
+
+            // --- Segment leaderboard (Feature #5) ---
+            var segmentMap = new Dictionary<long, Models.SegmentBestTime>();
+            foreach (var detail in details.Where(d => d?.SegmentEfforts != null))
+            {
+                foreach (var effort in detail!.SegmentEfforts!)
+                {
+                    if (effort.Segment == null) continue;
+                    if (!segmentMap.TryGetValue(effort.Segment.Id, out var seg))
+                    {
+                        seg = new Models.SegmentBestTime
+                        {
+                            SegmentId = effort.Segment.Id,
+                            SegmentName = effort.Segment.Name,
+                            DistanceM = effort.Segment.Distance,
+                            AverageGrade = effort.Segment.AverageGrade,
+                        };
+                        segmentMap[effort.Segment.Id] = seg;
+                    }
+                    seg.AllAttempts.Add(new Models.SegmentAttempt
+                    {
+                        Date = detail.StartDateLocal,
+                        ElapsedSeconds = effort.ElapsedTime,
+                        ActivityId = detail.Id,
+                        ActivityName = detail.Name,
+                        PrRank = effort.PrRank,
+                    });
+                }
+            }
+
+            foreach (var seg in segmentMap.Values)
+            {
+                var best = seg.AllAttempts.MinBy(a => a.ElapsedSeconds)!;
+                seg.BestElapsedSeconds = best.ElapsedSeconds;
+                seg.BestPrRank = best.PrRank;
+                seg.BestDate = best.Date;
+                seg.BestActivityId = best.ActivityId;
+                seg.BestActivityName = best.ActivityName;
+                seg.AttemptCount = seg.AllAttempts.Count;
+                seg.AllAttempts = seg.AllAttempts.OrderBy(a => a.Date).ToList();
+            }
+
+            // --- Best efforts over time (Feature #4) ---
+            var effortMap = new Dictionary<string, Models.BestEffortRow>();
+            foreach (var detail in details.Where(d => d?.BestEfforts != null))
+            {
+                foreach (var be in detail!.BestEfforts!)
+                {
+                    if (!effortMap.TryGetValue(be.Name, out var row))
+                    {
+                        row = new Models.BestEffortRow { DistanceName = be.Name, DistanceM = be.Distance };
+                        effortMap[be.Name] = row;
+                    }
+                    row.History.Add((detail.StartDateLocal, be.ElapsedTime, detail.Id, detail.Name));
+                }
+            }
+            foreach (var row in effortMap.Values)
+            {
+                var best = row.History.MinBy(h => h.Seconds);
+                row.BestElapsedSeconds = best.Seconds;
+                row.BestDate = best.Date;
+                row.BestActivityId = best.ActivityId;
+                row.BestActivityName = best.ActivityName;
+                row.History = row.History.OrderBy(h => h.Date).ToList();
+            }
+
+            var segVm = new Models.SegmentsViewModel
+            {
+                Segments = segmentMap.Values.OrderByDescending(s => s.AttemptCount).ThenBy(s => s.SegmentName).ToList(),
+                RidesFetched = fetchCount,
+                TotalRidesAvailable = rides.Count,
+            };
+            var beVm = new Models.BestEffortsViewModel
+            {
+                Rows = effortMap.Values.OrderBy(r => r.DistanceM).ToList(),
+                RidesFetched = fetchCount,
+            };
+
+            ViewBag.BestEfforts = beVm;
+            ViewBag.FetchCount = count;
+            return View(segVm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading segments");
+            ViewBag.Error = "Failed to load segment data.";
+            return View(new Models.SegmentsViewModel());
+        }
+    }
+
     public async Task<IActionResult> Fitness(int days = 365)
     {
         try

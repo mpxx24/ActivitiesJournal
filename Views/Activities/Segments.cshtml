@@ -1,0 +1,130 @@
+@model ActivitiesJournal.Models.SegmentsViewModel
+@{
+    ViewData["Title"] = "Segments & Best Efforts";
+    var beVm = ViewBag.BestEfforts as ActivitiesJournal.Models.BestEffortsViewModel;
+    int fetchCount = ViewBag.FetchCount ?? 30;
+}
+
+<div class="container-fluid">
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h1 class="page-title">Segments & Best Efforts</h1>
+            <p class="text-muted">Based on your last @Model.RidesFetched rides (of @Model.TotalRidesAvailable total)</p>
+        </div>
+        <div class="col-auto">
+            <form method="get" class="d-flex gap-2 align-items-center">
+                <label class="text-muted">Rides to scan:</label>
+                <select name="count" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()">
+                    @foreach (var n in new[] { 10, 20, 30, 50, 100 })
+                    {
+                        <option value="@n" selected="@(n == fetchCount)">@n</option>
+                    }
+                </select>
+            </form>
+        </div>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger"><strong>Error:</strong> @ViewBag.Error</div>
+    }
+
+    <div class="alert alert-secondary small">
+        <i class="bi bi-info-circle me-1"></i>
+        Each scan fetches full activity details from the Strava API (1 request per ride). Larger counts may be slower.
+        Increasing the count reveals more segment history but Strava may rate-limit above ~100 requests/15 min.
+    </div>
+
+    <!-- Best Efforts Over Time -->
+    @if (beVm?.Rows.Any() == true)
+    {
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-stopwatch text-warning me-2"></i>Best Efforts Over Time (#4)</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-dark table-striped table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Distance</th>
+                            <th class="text-end">Best Time</th>
+                            <th class="text-end">Date</th>
+                            <th>Ride</th>
+                            <th class="text-end">Attempts in window</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in beVm.Rows)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@row.DistanceName</td>
+                                <td class="text-end text-warning">@TimeSpan.FromSeconds(row.BestElapsedSeconds).ToString(@"m\:ss")</td>
+                                <td class="text-end text-muted small">@row.BestDate.ToString("MMM d, yyyy")</td>
+                                <td>
+                                    <a asp-controller="Activities" asp-action="Details" asp-route-id="@row.BestActivityId" class="link-light text-decoration-none small">
+                                        @row.BestActivityName
+                                    </a>
+                                </td>
+                                <td class="text-end text-muted">@row.History.Count</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- Segment Leaderboard -->
+    @if (Model.Segments.Any())
+    {
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-flag text-warning me-2"></i>Your Segment Leaderboard (#5)</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-dark table-striped table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Segment</th>
+                            <th class="text-end">Dist</th>
+                            <th class="text-end">Grade</th>
+                            <th class="text-end">Best Time</th>
+                            <th class="text-end">PR Rank</th>
+                            <th class="text-end">Attempts</th>
+                            <th class="text-end">Best Date</th>
+                            <th>Best Ride</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var seg in Model.Segments)
+                        {
+                            <tr>
+                                <td>@seg.SegmentName</td>
+                                <td class="text-end text-muted small">@((seg.DistanceM / 1000.0).ToString("0.0")) km</td>
+                                <td class="text-end text-muted small">@seg.AverageGrade.ToString("0.1")%</td>
+                                <td class="text-end text-warning">@TimeSpan.FromSeconds(seg.BestElapsedSeconds).ToString(@"m\:ss")</td>
+                                <td class="text-end">
+                                    @if (seg.BestPrRank.HasValue)
+                                    {
+                                        <span class="badge bg-success">PR #@seg.BestPrRank</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td class="text-end @(seg.AttemptCount > 1 ? "text-info" : "text-muted")">@seg.AttemptCount</td>
+                                <td class="text-end text-muted small">@seg.BestDate.ToString("MMM d, yy")</td>
+                                <td>
+                                    <a asp-controller="Activities" asp-action="Details" asp-route-id="@seg.BestActivityId" class="link-light text-decoration-none small">
+                                        @seg.BestActivityName
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else if (ViewBag.Error == null)
+    {
+        <div class="alert alert-info">No segment data found in the scanned rides.</div>
+    }
+</div>
