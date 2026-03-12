@@ -556,14 +556,20 @@ public class ActivitiesController : Controller
         }
     }
 
-    public async Task<IActionResult> Heatmap()
+    public async Task<IActionResult> Heatmap(int? year = null)
     {
         try
         {
-            var year = DateTime.Now.Year;
-            var activities = await _stravaService.GetActivitiesAsync(1, 200);
-            var withPolylines = activities
-                .Where(a => a.StartDateLocal.Year == year && a.Map?.SummaryPolyline != null)
+            var all = await _stravaService.GetAllActivitiesAsync();
+
+            var availableYears = all.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
+            ViewBag.AvailableYears = availableYears;
+            ViewBag.SelectedYear = year;  // null = all-time
+
+            var withPolylines = (year == null
+                ? all
+                : all.Where(a => a.StartDateLocal.Year == year))
+                .Where(a => a.Map?.SummaryPolyline != null)
                 .ToList();
 
             return View(withPolylines);
