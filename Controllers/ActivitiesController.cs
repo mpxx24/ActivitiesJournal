@@ -109,6 +109,67 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> MonthComparison(int? year = null)
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+
+            var availableYears = rides.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
+            int selectedYear = year ?? DateTime.Now.Year;
+            int priorYear = selectedYear - 1;
+
+            Models.MonthStats StatsFor(IEnumerable<Models.StravaActivity> src, int y, int m)
+            {
+                var bucket = src.Where(a => a.StartDateLocal.Year == y && a.StartDateLocal.Month == m).ToList();
+                var totalDist = bucket.Sum(a => a.Distance);
+                var totalTime = bucket.Sum(a => a.MovingTime);
+                return new Models.MonthStats
+                {
+                    Year = y, Month = m,
+                    RideCount = bucket.Count,
+                    DistanceKm = totalDist / 1000.0,
+                    ElevationM = bucket.Sum(a => a.TotalElevationGain),
+                    MovingTime = TimeSpan.FromSeconds(totalTime),
+                    AvgSpeedKmh = totalTime > 0 ? (totalDist / totalTime) * 3.6 : 0,
+                };
+            }
+
+            var currentByMonth = new Models.MonthStats[13];
+            var priorByMonth = new Models.MonthStats[13];
+            for (int m = 1; m <= 12; m++)
+            {
+                currentByMonth[m] = StatsFor(rides, selectedYear, m);
+                priorByMonth[m] = StatsFor(rides, priorYear, m);
+            }
+
+            var monthly = rides
+                .GroupBy(a => new { a.StartDateLocal.Year, a.StartDateLocal.Month })
+                .Select(g => StatsFor(rides, g.Key.Year, g.Key.Month))
+                .OrderByDescending(s => s.Year).ThenByDescending(s => s.Month)
+                .ToList();
+
+            var vm = new Models.MonthComparisonViewModel
+            {
+                MonthlyStats = monthly,
+                SelectedYear = selectedYear,
+                CompareYear = priorYear,
+                AvailableYears = availableYears,
+                CurrentYearByMonth = currentByMonth,
+                PriorYearByMonth = priorByMonth,
+            };
+
+            return View(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading month comparison");
+            ViewBag.Error = "Failed to load comparison data.";
+            return View(new Models.MonthComparisonViewModel { SelectedYear = DateTime.Now.Year });
+        }
+    }
+
     public async Task<IActionResult> PersonalRecords()
     {
         try

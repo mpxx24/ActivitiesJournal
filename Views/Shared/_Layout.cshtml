@@ -49,6 +49,11 @@
                                 <i class="bi bi-trophy me-1"></i> Records
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Activities" asp-action="MonthComparison">
+                                <i class="bi bi-bar-chart me-1"></i> Month vs Month
+                            </a>
+                        </li>
                         @if (string.IsNullOrEmpty(StravaOptions.Value.AccessToken))
                         {
                             <li class="nav-item ms-sm-auto">

@@ -1,0 +1,115 @@
+@model ActivitiesJournal.Models.MonthComparisonViewModel
+@{
+    ViewData["Title"] = "Month Comparison";
+    var months = new[] { "", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+}
+
+<div class="container-fluid">
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h1 class="page-title">Month-over-Month</h1>
+            <p class="text-muted">Compare @Model.SelectedYear vs @Model.CompareYear</p>
+        </div>
+        <div class="col-auto">
+            <form method="get" class="d-flex gap-2 align-items-center">
+                <label class="text-muted">Year:</label>
+                <select name="year" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()">
+                    @foreach (var y in Model.AvailableYears)
+                    {
+                        <option value="@y" selected="@(y == Model.SelectedYear)">@y</option>
+                    }
+                </select>
+            </form>
+        </div>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger"><strong>Error:</strong> @ViewBag.Error</div>
+    }
+
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Distance per Month (km)</h5></div>
+                <div class="card-body">
+                    <canvas id="distChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Monthly Stats — @Model.SelectedYear vs @Model.CompareYear</h5></div>
+                <div class="card-body p-0">
+                    <table class="table table-dark table-striped table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th class="text-end">@Model.SelectedYear Rides</th>
+                                <th class="text-end">@Model.SelectedYear km</th>
+                                <th class="text-end">@Model.SelectedYear Elev</th>
+                                <th class="text-end border-start">@Model.CompareYear Rides</th>
+                                <th class="text-end">@Model.CompareYear km</th>
+                                <th class="text-end">@Model.CompareYear Elev</th>
+                                <th class="text-end">Δ km</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int m = 1; m <= 12; m++)
+                            {
+                                var cur = Model.CurrentYearByMonth[m];
+                                var pri = Model.PriorYearByMonth[m];
+                                var delta = cur.DistanceKm - pri.DistanceKm;
+                                <tr>
+                                    <td>@months[m]</td>
+                                    <td class="text-end">@cur.RideCount</td>
+                                    <td class="text-end">@cur.DistanceKm.ToString("0.0")</td>
+                                    <td class="text-end">@cur.ElevationM.ToString("0")</td>
+                                    <td class="text-end border-start text-muted">@pri.RideCount</td>
+                                    <td class="text-end text-muted">@pri.DistanceKm.ToString("0.0")</td>
+                                    <td class="text-end text-muted">@pri.ElevationM.ToString("0")</td>
+                                    <td class="text-end @(delta >= 0 ? "text-success" : "text-danger")">
+                                        @(delta >= 0 ? "+" : "")@delta.ToString("0.0")
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(months.Skip(1).ToArray()));
+    var cur = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Enumerable.Range(1, 12).Select(m => Math.Round(Model.CurrentYearByMonth[m].DistanceKm, 1)).ToArray()));
+    var pri = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Enumerable.Range(1, 12).Select(m => Math.Round(Model.PriorYearByMonth[m].DistanceKm, 1)).ToArray()));
+
+    new Chart(document.getElementById('distChart'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: '@Model.SelectedYear', data: cur, backgroundColor: 'rgba(255, 193, 7, 0.7)', borderColor: 'rgba(255, 193, 7, 1)', borderWidth: 1 },
+                { label: '@Model.CompareYear', data: pri, backgroundColor: 'rgba(108, 117, 125, 0.5)', borderColor: 'rgba(108, 117, 125, 0.8)', borderWidth: 1 }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: '#adb5bd' } } },
+            scales: {
+                x: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: 'km', color: '#adb5bd' } }
+            }
+        }
+    });
+})();
+</script>
+}
