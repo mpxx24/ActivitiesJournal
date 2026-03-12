@@ -35,9 +35,15 @@
                     @if (Model.Goals.DistanceGoalKm != null)
                     {
                         <div class="col-md-4">
-                            <div class="mb-1 d-flex justify-content-between">
+                            <div class="mb-1 d-flex justify-content-between align-items-center">
                                 <span><i class="bi bi-rulers me-1 text-warning"></i>Distance</span>
-                                <span class="text-muted">@Model.CurrentDistanceKm.ToString("0.0") / @Model.Goals.DistanceGoalKm.Value.ToString("0") km</span>
+                                <span class="d-flex align-items-center gap-2">
+                                    <span class="text-muted">@Model.CurrentDistanceKm.ToString("0.0") / @Model.Goals.DistanceGoalKm.Value.ToString("0") km</span>
+                                    <form method="post" asp-action="ClearGoal" class="d-inline">
+                                        <input type="hidden" name="field" value="distance" />
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Remove goal"><i class="bi bi-x-lg"></i></button>
+                                    </form>
+                                </span>
                             </div>
                             <div class="progress mb-1" style="height:18px;">
                                 <div class="progress-bar bg-warning" style="width:@Model.DistancePct.ToString("0.0")%">@Model.DistancePct.ToString("0")%</div>
@@ -48,9 +54,15 @@
                     @if (Model.Goals.ElevationGoalM != null)
                     {
                         <div class="col-md-4">
-                            <div class="mb-1 d-flex justify-content-between">
+                            <div class="mb-1 d-flex justify-content-between align-items-center">
                                 <span><i class="bi bi-triangle me-1 text-warning"></i>Elevation</span>
-                                <span class="text-muted">@Model.CurrentElevationM.ToString("0") / @Model.Goals.ElevationGoalM.Value.ToString("0") m</span>
+                                <span class="d-flex align-items-center gap-2">
+                                    <span class="text-muted">@Model.CurrentElevationM.ToString("0") / @Model.Goals.ElevationGoalM.Value.ToString("0") m</span>
+                                    <form method="post" asp-action="ClearGoal" class="d-inline">
+                                        <input type="hidden" name="field" value="elevation" />
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Remove goal"><i class="bi bi-x-lg"></i></button>
+                                    </form>
+                                </span>
                             </div>
                             <div class="progress mb-1" style="height:18px;">
                                 <div class="progress-bar bg-info" style="width:@Model.ElevationPct.ToString("0.0")%">@Model.ElevationPct.ToString("0")%</div>
@@ -61,9 +73,15 @@
                     @if (Model.Goals.RidesGoal != null)
                     {
                         <div class="col-md-4">
-                            <div class="mb-1 d-flex justify-content-between">
+                            <div class="mb-1 d-flex justify-content-between align-items-center">
                                 <span><i class="bi bi-bicycle me-1 text-warning"></i>Rides</span>
-                                <span class="text-muted">@Model.CurrentRides / @Model.Goals.RidesGoal.Value</span>
+                                <span class="d-flex align-items-center gap-2">
+                                    <span class="text-muted">@Model.CurrentRides / @Model.Goals.RidesGoal.Value</span>
+                                    <form method="post" asp-action="ClearGoal" class="d-inline">
+                                        <input type="hidden" name="field" value="rides" />
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Remove goal"><i class="bi bi-x-lg"></i></button>
+                                    </form>
+                                </span>
                             </div>
                             <div class="progress mb-1" style="height:18px;">
                                 <div class="progress-bar bg-success" style="width:@Model.RidesPct.ToString("0.0")%">@Model.RidesPct.ToString("0")%</div>

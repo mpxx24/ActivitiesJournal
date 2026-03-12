@@ -98,6 +98,22 @@ public class GoalsController : Controller
     }
 
     [HttpPost]
+    public IActionResult ClearGoal(string field)
+    {
+        int year = DateTime.Now.Year;
+        var data = _goals.Load();
+        var existing = data.AnnualGoals.FirstOrDefault(g => g.Year == year);
+        if (existing != null)
+        {
+            if (field == "distance")  existing.DistanceGoalKm = null;
+            if (field == "elevation") existing.ElevationGoalM = null;
+            if (field == "rides")     existing.RidesGoal = null;
+            _goals.Save(data);
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
     public IActionResult AddChallenge(string name, double targetKm, DateTime startDate)
     {
         var data = _goals.Load();
