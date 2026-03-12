@@ -484,6 +484,86 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> Fitness(int days = 365)
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+
+            // Build a daily load map.
+            // Training load proxy: (distance_km * avg_speed_factor) scaled to roughly 0–100 TSS equivalent.
+            // Simple formula: load = (moving_time_hrs * avg_speed_kmh) / 2  — produces ~50 for a steady 2h ride at 25 km/h
+            var dailyLoad = rides
+                .GroupBy(a => a.StartDateLocal.Date)
+                .ToDictionary(g => g.Key, g => g.Sum(a =>
+                {
+                    double hrs = a.MovingTime / 3600.0;
+                    double spd = a.AverageSpeed * 3.6;
+                    return hrs * spd / 2.0;
+                }));
+
+            // Compute CTL/ATL from oldest date through today using EMA
+            var today = DateTime.Today;
+            var startDate = today.AddDays(-days);
+            // Seed from earlier history for accuracy
+            var seedStart = rides.Any() ? rides.Min(a => a.StartDateLocal.Date) : startDate;
+
+            double ctl = 0, atl = 0;
+            const double ctlDecay = 1.0 / 42.0;
+            const double atlDecay = 1.0 / 7.0;
+
+            // Pre-seed CTL/ATL from all history before our display window
+            for (var d = seedStart; d < startDate; d = d.AddDays(1))
+            {
+                double load = dailyLoad.GetValueOrDefault(d, 0);
+                ctl = ctl + (load - ctl) * ctlDecay;
+                atl = atl + (load - atl) * atlDecay;
+            }
+
+            var points = new List<Models.FitnessDayPoint>();
+            for (var d = startDate; d <= today; d = d.AddDays(1))
+            {
+                double load = dailyLoad.GetValueOrDefault(d, 0);
+                ctl = ctl + (load - ctl) * ctlDecay;
+                atl = atl + (load - atl) * atlDecay;
+                points.Add(new Models.FitnessDayPoint
+                {
+                    Date = d,
+                    Load = Math.Round(load, 1),
+                    Ctl = Math.Round(ctl, 1),
+                    Atl = Math.Round(atl, 1),
+                    Tsb = Math.Round(ctl - atl, 1),
+                });
+            }
+
+            var last = points.LastOrDefault();
+            double tsb = last?.Tsb ?? 0;
+            string status = tsb > 5 ? "Fresh — good day to race or go hard"
+                          : tsb > -10 ? "Neutral — normal training"
+                          : tsb > -30 ? "Tired — accumulated fatigue"
+                          : "Very fatigued — consider rest";
+
+            var vm = new Models.FitnessViewModel
+            {
+                Points = points,
+                DaysShown = days,
+                CurrentCtl = last?.Ctl ?? 0,
+                CurrentAtl = last?.Atl ?? 0,
+                CurrentTsb = tsb,
+                TsbStatus = status,
+            };
+
+            return View(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading fitness curves");
+            ViewBag.Error = "Failed to load fitness data.";
+            return View(new Models.FitnessViewModel());
+        }
+    }
+
     public async Task<IActionResult> Analysis(int? year = null)
     {
         try

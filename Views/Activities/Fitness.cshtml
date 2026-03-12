@@ -1,0 +1,128 @@
+@model ActivitiesJournal.Models.FitnessViewModel
+@{
+    ViewData["Title"] = "Fitness & Fatigue";
+}
+
+<div class="container-fluid">
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h1 class="page-title">Fitness & Fatigue (CTL / ATL / TSB)</h1>
+            <p class="text-muted">Training load curves — last @Model.DaysShown days</p>
+        </div>
+        <div class="col-auto">
+            <form method="get" class="d-flex gap-2 align-items-center">
+                <label class="text-muted">Show:</label>
+                <select name="days" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()">
+                    @foreach (var d in new[] { 90, 180, 365 })
+                    {
+                        <option value="@d" selected="@(d == Model.DaysShown)">@d days</option>
+                    }
+                </select>
+            </form>
+        </div>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger"><strong>Error:</strong> @ViewBag.Error</div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-label">CTL — Fitness <small class="text-muted">(42-day)</small></div>
+                    <div class="stat-value text-info">@Model.CurrentCtl.ToString("0.0")</div>
+                    <small class="text-muted">Chronic Training Load</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-label">ATL — Fatigue <small class="text-muted">(7-day)</small></div>
+                    <div class="stat-value text-danger">@Model.CurrentAtl.ToString("0.0")</div>
+                    <small class="text-muted">Acute Training Load</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-label">TSB — Form</div>
+                    <div class="stat-value @(Model.CurrentTsb >= 0 ? "text-success" : "text-warning")">@Model.CurrentTsb.ToString("0.0")</div>
+                    <small class="text-muted">@Model.TsbStatus</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">CTL / ATL / TSB Chart</h5>
+            <small class="text-muted">Training load proxy: (hours × avg km/h) / 2</small>
+        </div>
+        <div class="card-body">
+            <canvas id="fitnessChart" height="120"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h5 class="mb-0">Interpretation Guide</h5></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="p-3 rounded" style="border-left:4px solid #17a2b8; background:rgba(23,162,184,0.1)">
+                        <strong class="text-info">CTL — Fitness</strong>
+                        <p class="mb-0 small text-muted mt-1">42-day exponential moving average of daily load. Rising = getting fitter. Higher = more base fitness.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded" style="border-left:4px solid #dc3545; background:rgba(220,53,69,0.1)">
+                        <strong class="text-danger">ATL — Fatigue</strong>
+                        <p class="mb-0 small text-muted mt-1">7-day exponential moving average. Spikes after hard training blocks. High ATL = you're accumulating fatigue.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded" style="border-left:4px solid #ffc107; background:rgba(255,193,7,0.1)">
+                        <strong class="text-warning">TSB — Form</strong>
+                        <p class="mb-0 small text-muted mt-1">CTL minus ATL. Positive = fresh and ready to perform. Negative = tired. Sweet spot for racing: +5 to +15.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    // Sample every 3rd point on large datasets to keep the chart responsive
+    var allPoints = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Points.Select(p => new { d = p.Date.ToString("yyyy-MM-dd"), ctl = p.Ctl, atl = p.Atl, tsb = p.Tsb }).ToArray()));
+    var step = Math.max(1, Math.floor(allPoints.length / 300));
+    var pts = allPoints.filter((_, i) => i % step === 0 || i === allPoints.length - 1);
+
+    new Chart(document.getElementById('fitnessChart'), {
+        type: 'line',
+        data: {
+            labels: pts.map(p => p.d),
+            datasets: [
+                { label: 'CTL (Fitness)', data: pts.map(p => p.ctl), borderColor: '#17a2b8', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                { label: 'ATL (Fatigue)', data: pts.map(p => p.atl), borderColor: '#dc3545', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                { label: 'TSB (Form)',    data: pts.map(p => p.tsb), borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.08)', fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { labels: { color: '#adb5bd' } } },
+            scales: {
+                x: { ticks: { color: '#adb5bd', maxTicksLimit: 12 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            }
+        }
+    });
+})();
+</script>
+}

@@ -79,6 +79,11 @@
                                 <i class="bi bi-pie-chart me-1"></i> Analysis
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Activities" asp-action="Fitness">
+                                <i class="bi bi-heart-pulse me-1"></i> Fitness
+                            </a>
+                        </li>
                         @if (string.IsNullOrEmpty(StravaOptions.Value.AccessToken))
                         {
                             <li class="nav-item ms-sm-auto">
