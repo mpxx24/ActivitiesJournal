@@ -19,6 +19,8 @@ param deployerObjectId string = ''
 // Key Vault name: max 24 chars, globally unique
 var kvName = 'kv${take(uniqueString(resourceGroup().id, appName), 21)}'
 var appServicePlanName = 'plan-${appName}'
+// Storage account name: 3-24 chars, lowercase letters/numbers only, globally unique
+var storageAccountName = 'st${take(uniqueString(resourceGroup().id, appName), 22)}'
 
 // ------------------------------------------------------------
 // Log Analytics Workspace (required for workspace-based App Insights)
@@ -123,8 +125,44 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
           name: 'ApplicationInsightsAgent_EXTENSION_VERSION'
           value: '~3'
         }
+        {
+          // Blob Storage endpoint for goals.json persistence (read by GoalsService via DefaultAzureCredential)
+          name: 'Storage__BlobEndpoint'
+          value: storageAccount.properties.primaryEndpoints.blob
+        }
       ]
     }
+  }
+}
+
+// ------------------------------------------------------------
+// Storage Account — for goals.json persistence (LRS, cool enough for personal app)
+// ~€0.02/month at this scale
+// ------------------------------------------------------------
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+  name: storageAccountName
+  location: location
+  sku: {
+    name: 'Standard_LRS'
+  }
+  kind: 'StorageV2'
+  properties: {
+    allowBlobPublicAccess: false
+    minimumTlsVersion: 'TLS1_2'
+    supportsHttpsTrafficOnly: true
+  }
+}
+
+// Role assignment: App Service Managed Identity → Storage Blob Data Contributor
+var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+
+resource storageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, appService.id, storageBlobDataContributorRoleId)
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRoleId)
+    principalId: appService.identity.principalId
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -190,3 +228,4 @@ output keyVaultName string = keyVault.name
 output appServiceName string = appService.name
 output appInsightsName string = appInsights.name
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
+output storageAccountName string = storageAccount.name

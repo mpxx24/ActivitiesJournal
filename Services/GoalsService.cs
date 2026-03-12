@@ -1,21 +1,48 @@
 using System.Text.Json;
 using ActivitiesJournal.Models;
+using Azure.Identity;
+using Azure.Storage.Blobs;
 
 namespace ActivitiesJournal.Services;
 
 public class GoalsService
 {
     private readonly string _filePath;
+    private readonly BlobClient? _blobClient;
     private static readonly JsonSerializerOptions _json = new() { WriteIndented = true };
 
-    public GoalsService(IWebHostEnvironment env)
+    public GoalsService(IWebHostEnvironment env, IConfiguration config)
     {
         _filePath = Path.Combine(env.ContentRootPath, "App_Data", "goals.json");
         Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+
+        var blobEndpoint = config["Storage:BlobEndpoint"];
+        if (!string.IsNullOrEmpty(blobEndpoint))
+        {
+            var containerClient = new BlobContainerClient(
+                new Uri($"{blobEndpoint.TrimEnd('/')}/goals"),
+                new DefaultAzureCredential());
+            containerClient.CreateIfNotExists();
+            _blobClient = containerClient.GetBlobClient("goals.json");
+        }
     }
 
     public GoalsData Load()
     {
+        if (_blobClient != null)
+        {
+            try
+            {
+                var response = _blobClient.DownloadContent();
+                return JsonSerializer.Deserialize<GoalsData>(response.Value.Content.ToString(), _json) ?? SeedDefaults();
+            }
+            catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+            {
+                return SeedDefaults();
+            }
+            catch { return SeedDefaults(); }
+        }
+
         if (!File.Exists(_filePath)) return SeedDefaults();
         try
         {
@@ -26,7 +53,18 @@ public class GoalsService
     }
 
     public void Save(GoalsData data)
-        => File.WriteAllText(_filePath, JsonSerializer.Serialize(data, _json));
+    {
+        var json = JsonSerializer.Serialize(data, _json);
+
+        if (_blobClient != null)
+        {
+            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+            _blobClient.Upload(stream, overwrite: true);
+            return;
+        }
+
+        File.WriteAllText(_filePath, json);
+    }
 
     private static GoalsData SeedDefaults()
     {
