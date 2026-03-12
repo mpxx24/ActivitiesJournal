@@ -1,0 +1,60 @@
+@model ActivitiesJournal.Models.BadgesViewModel
+@{
+    ViewData["Title"] = "Badges";
+}
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="page-title">Badges</h1>
+            <p class="text-muted">@Model.EarnedCount / @Model.Badges.Count earned</p>
+        </div>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger"><strong>Error:</strong> @ViewBag.Error</div>
+    }
+
+    <div class="row g-3">
+        @foreach (var badge in Model.Badges.OrderByDescending(b => b.Earned))
+        {
+            <div class="col-md-6 col-lg-4 col-xl-3">
+                <div class="card h-100 @(badge.Earned ? "" : "opacity-50")">
+                    <div class="card-body d-flex gap-3 align-items-start">
+                        <div class="fs-1 @(badge.Earned ? "text-warning" : "text-secondary")">
+                            <i class="bi @badge.Icon"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1 @(badge.Earned ? "text-white" : "text-muted")">
+                                @badge.Name
+                                @if (badge.Earned)
+                                {
+                                    <i class="bi bi-check-circle-fill text-success ms-1 small"></i>
+                                }
+                            </h6>
+                            <p class="mb-1 small text-muted">@badge.Description</p>
+                            @if (badge.Earned && badge.EarningActivity != null)
+                            {
+                                <small class="text-success">
+                                    Earned on @badge.EarnedOn?.ToString("MMM d, yyyy") via
+                                    <a asp-controller="Activities" asp-action="Details" asp-route-id="@badge.EarningActivity.Id" class="link-success">
+                                        @badge.EarningActivity.Name
+                                    </a>
+                                </small>
+                            }
+                            else if (badge.Earned)
+                            {
+                                <small class="text-success">Earned!</small>
+                            }
+                            else if (badge.Progress != null)
+                            {
+                                <small class="text-muted">@badge.Progress</small>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>

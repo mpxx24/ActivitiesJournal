@@ -109,6 +109,132 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> Badges()
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide")
+                           .OrderBy(a => a.StartDateLocal).ToList();
+
+            double totalDistKm = rides.Sum(a => a.Distance) / 1000.0;
+            double totalElevM = rides.Sum(a => (double)a.TotalElevationGain);
+            int totalRides = rides.Count;
+
+            var rideDates = rides.Select(a => a.StartDateLocal.Date).Distinct().OrderBy(d => d).ToList();
+            int longestStreak = ComputeLongestStreak(rideDates);
+
+            var centuries = rides.Where(a => a.Distance >= 100_000).ToList();
+            var bigClimbs = rides.Where(a => a.TotalElevationGain >= 2000).ToList();
+            var earlyBird = rides.Where(a => a.StartDateLocal.Hour < 7).ToList();
+            var nightOwl = rides.Where(a => a.StartDateLocal.Hour >= 20).ToList();
+            var fastRides = rides.Where(a => a.Distance >= 40_000 && a.AverageSpeed * 3.6 >= 35).ToList();
+
+            var badges = new List<Models.Badge>
+            {
+                MilestoneBadge("First Ride", "Complete your first bike ride", "bi-bicycle", 1, totalRides, rides.FirstOrDefault()),
+                MilestoneBadge("10 Rides", "Complete 10 rides", "bi-bicycle", 10, totalRides, rides.Count >= 10 ? rides[9] : null),
+                MilestoneBadge("50 Rides", "Complete 50 rides", "bi-bicycle-fill", 50, totalRides, rides.Count >= 50 ? rides[49] : null),
+                MilestoneBadge("100 Rides", "Complete 100 rides", "bi-bicycle-fill", 100, totalRides, rides.Count >= 100 ? rides[99] : null),
+                MilestoneBadge("500 Rides", "Complete 500 rides", "bi-bicycle-fill", 500, totalRides, rides.Count >= 500 ? rides[499] : null),
+
+                DistanceBadge("100 km Club", "Ride 100 km total", "bi-signpost", 100, totalDistKm, rides),
+                DistanceBadge("1,000 km Club", "Ride 1,000 km total", "bi-signpost-2", 1_000, totalDistKm, rides),
+                DistanceBadge("5,000 km Club", "Ride 5,000 km total", "bi-signpost-2-fill", 5_000, totalDistKm, rides),
+                DistanceBadge("10,000 km Club", "Ride 10,000 km total", "bi-globe", 10_000, totalDistKm, rides),
+                DistanceBadge("Moon Shot (384,400 km)", "Ride the distance to the Moon", "bi-moon-stars", 384_400, totalDistKm, rides),
+
+                ElevationBadge("Everest (8,849 m)", "Climb as high as Mt Everest in total", "bi-triangle", 8_849, totalElevM, rides),
+                ElevationBadge("Triple Everest", "Climb 3× Everest in total", "bi-triangle-fill", 26_547, totalElevM, rides),
+                ElevationBadge("10× Everest", "Climb 10× Everest in total", "bi-triangle-fill", 88_490, totalElevM, rides),
+
+                new Models.Badge { Name = "Century Ride", Description = "Complete a 100 km+ ride in a single session", Icon = "bi-c-circle",
+                    Earned = centuries.Any(), EarningActivity = centuries.FirstOrDefault(),
+                    EarnedOn = centuries.FirstOrDefault()?.StartDateLocal,
+                    Progress = centuries.Any() ? null : $"Longest: {(rides.Any() ? (rides.Max(a => a.Distance) / 1000.0).ToString("0.0") : "0")} km" },
+
+                new Models.Badge { Name = "Mountain Goat", Description = "Gain 2,000+ m elevation in a single ride", Icon = "bi-sunrise",
+                    Earned = bigClimbs.Any(), EarningActivity = bigClimbs.FirstOrDefault(),
+                    EarnedOn = bigClimbs.FirstOrDefault()?.StartDateLocal,
+                    Progress = bigClimbs.Any() ? null : $"Best: {(rides.Any() ? rides.Max(a => a.TotalElevationGain).ToString("0") : "0")} m" },
+
+                new Models.Badge { Name = "Speed Demon", Description = "Average 35+ km/h on a 40+ km ride", Icon = "bi-lightning-charge-fill",
+                    Earned = fastRides.Any(), EarningActivity = fastRides.FirstOrDefault(),
+                    EarnedOn = fastRides.FirstOrDefault()?.StartDateLocal,
+                    Progress = fastRides.Any() ? null : "Avg 35 km/h on a 40+ km ride" },
+
+                new Models.Badge { Name = "Week Warrior", Description = "Ride 7 days in a row", Icon = "bi-fire",
+                    Earned = longestStreak >= 7,
+                    Progress = longestStreak >= 7 ? null : $"Best streak: {longestStreak} day(s)" },
+
+                new Models.Badge { Name = "Early Bird", Description = "Start a ride before 7 AM", Icon = "bi-sunrise-fill",
+                    Earned = earlyBird.Any(), EarningActivity = earlyBird.FirstOrDefault(),
+                    EarnedOn = earlyBird.FirstOrDefault()?.StartDateLocal },
+
+                new Models.Badge { Name = "Night Owl", Description = "Start a ride at or after 8 PM", Icon = "bi-moon-fill",
+                    Earned = nightOwl.Any(), EarningActivity = nightOwl.FirstOrDefault(),
+                    EarnedOn = nightOwl.FirstOrDefault()?.StartDateLocal },
+
+                new Models.Badge { Name = "Year-Round Rider", Description = "Ride in all 12 calendar months in a single year", Icon = "bi-calendar-check",
+                    Earned = rides.GroupBy(a => a.StartDateLocal.Year).Any(g => g.Select(a => a.StartDateLocal.Month).Distinct().Count() == 12),
+                    Progress = $"Best: {(rides.Any() ? rides.GroupBy(a => a.StartDateLocal.Year).Max(g => g.Select(a => a.StartDateLocal.Month).Distinct().Count()) : 0)} months" },
+            };
+
+            return View(new Models.BadgesViewModel { Badges = badges });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading badges");
+            ViewBag.Error = "Failed to load badges.";
+            return View(new Models.BadgesViewModel());
+        }
+    }
+
+    private static int ComputeLongestStreak(List<DateTime> sortedDates)
+    {
+        if (!sortedDates.Any()) return 0;
+        int longest = 1, current = 1;
+        for (int i = 1; i < sortedDates.Count; i++)
+        {
+            current = (sortedDates[i] - sortedDates[i - 1]).Days == 1 ? current + 1 : 1;
+            if (current > longest) longest = current;
+        }
+        return longest;
+    }
+
+    private static Models.Badge MilestoneBadge(string name, string desc, string icon, int target, int actual, Models.StravaActivity? earner)
+        => new() { Name = name, Description = desc, Icon = icon, Earned = actual >= target,
+            EarningActivity = earner, EarnedOn = earner?.StartDateLocal,
+            Progress = actual < target ? $"{actual}/{target} rides" : null };
+
+    private static Models.Badge DistanceBadge(string name, string desc, string icon, double targetKm, double actualKm, List<Models.StravaActivity> rides)
+    {
+        var earned = actualKm >= targetKm;
+        Models.StravaActivity? earner = null;
+        if (earned)
+        {
+            double cum = 0;
+            foreach (var r in rides) { cum += r.Distance / 1000.0; if (cum >= targetKm) { earner = r; break; } }
+        }
+        return new() { Name = name, Description = desc, Icon = icon, Earned = earned,
+            EarningActivity = earner, EarnedOn = earner?.StartDateLocal,
+            Progress = earned ? null : $"{actualKm:0.0}/{targetKm:0} km" };
+    }
+
+    private static Models.Badge ElevationBadge(string name, string desc, string icon, double targetM, double actualM, List<Models.StravaActivity> rides)
+    {
+        var earned = actualM >= targetM;
+        Models.StravaActivity? earner = null;
+        if (earned)
+        {
+            double cum = 0;
+            foreach (var r in rides) { cum += r.TotalElevationGain; if (cum >= targetM) { earner = r; break; } }
+        }
+        return new() { Name = name, Description = desc, Icon = icon, Earned = earned,
+            EarningActivity = earner, EarnedOn = earner?.StartDateLocal,
+            Progress = earned ? null : $"{actualM:0}/{targetM:0} m" };
+    }
+
     public async Task<IActionResult> Calendar(int? year = null)
     {
         try
