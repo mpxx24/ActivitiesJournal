@@ -21,16 +21,15 @@ var kvName = 'kv${take(uniqueString(resourceGroup().id, appName), 21)}'
 var appServicePlanName = 'plan-${appName}'
 
 // ------------------------------------------------------------
-// App Service Plan — Free tier (F1, Linux)
-// Limitations: 60 min compute/day, no Always On, shared CPU
-// Upgrade to B1 (~$13/mo) if you need always-on cold starts
+// App Service Plan — B1 Basic (Linux)
+// ~€11/month, no compute-time quota, supports Always On
 // ------------------------------------------------------------
 resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
   name: appServicePlanName
   location: location
   sku: {
-    name: 'F1'
-    tier: 'Free'
+    name: 'B1'
+    tier: 'Basic'
   }
   properties: {
     reserved: true // Linux
@@ -51,7 +50,7 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|8.0'
-      alwaysOn: false // Not available on Free tier
+      alwaysOn: true
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
