@@ -89,6 +89,16 @@
                                 <i class="bi bi-flag me-1"></i> Segments
                             </a>
                         </li>
+                        <li class="nav-item ms-sm-auto">
+                            <form method="post" asp-controller="Strava" asp-action="ClearCache"
+                                  asp-route-returnUrl="@Context.Request.Path">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="nav-link btn btn-link text-muted"
+                                        title="Clear cached Strava data and reload from API">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Reload
+                                </button>
+                            </form>
+                        </li>
                         @if (string.IsNullOrEmpty(StravaOptions.Value.AccessToken))
                         {
                             <li class="nav-item ms-sm-auto">

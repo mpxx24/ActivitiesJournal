@@ -14,6 +14,14 @@ public class StravaController : Controller
         _logger = logger;
     }
 
+    [HttpPost]
+    public IActionResult ClearCache(string? returnUrl = null)
+    {
+        _stravaService.InvalidateCache();
+        _logger.LogInformation("Cache cleared manually");
+        return Redirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
+    }
+
     public IActionResult Authorize()
     {
         var authUrl = _stravaService.GetAuthorizationUrl();

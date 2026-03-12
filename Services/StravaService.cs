@@ -17,8 +17,8 @@ public class StravaService : IStravaService
     private static string PageCacheKey(int page, int perPage) => $"strava_page_{page}_{perPage}";
     private static string ActivityCacheKey(long id) => $"strava_activity_{id}";
 
-    private static readonly TimeSpan ListCacheDuration = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan DetailCacheDuration = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan ListCacheDuration = TimeSpan.FromHours(1);
+    private static readonly TimeSpan DetailCacheDuration = TimeSpan.FromHours(1);
 
     public StravaService(IOptions<StravaConfig> config, HttpClient httpClient, IMemoryCache cache, ILogger<StravaService> logger)
     {
@@ -54,9 +54,12 @@ public class StravaService : IStravaService
 
     public void InvalidateCache()
     {
+        // Remove the all-activities aggregate key
         _cache.Remove(AllActivitiesCacheKey);
-        // Page-level keys use a sliding expiry so they'll expire naturally;
-        // removing the all-activities key is enough for the common case.
+        // Remove paginated list keys (pages 1–20 cover any realistic dataset)
+        for (int p = 1; p <= 20; p++)
+            _cache.Remove(PageCacheKey(p, 200));
+        _logger.LogInformation("Strava cache invalidated");
     }
 
     public async Task<List<StravaActivity>> GetActivitiesAsync(int page = 1, int perPage = 30)
