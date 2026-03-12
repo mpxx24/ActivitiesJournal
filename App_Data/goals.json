@@ -1,0 +1,54 @@
+{
+  "AnnualGoals": [
+    {
+      "Year": 2026,
+      "DistanceGoalKm": null,
+      "ElevationGoalM": null,
+      "RidesGoal": null
+    }
+  ],
+  "Challenges": [
+    {
+      "Id": "b9f1984c-495f-45db-8725-3a83e1c7a7bf",
+      "Name": "Tour de France",
+      "TargetKm": 3406,
+      "StartDate": "2026-03-12T00:00:00+01:00",
+      "IsPreset": true
+    },
+    {
+      "Id": "780ea98c-8f1d-455a-8936-4944af37b797",
+      "Name": "Giro d\u0027Italia",
+      "TargetKm": 3497,
+      "StartDate": "2026-03-12T00:00:00+01:00",
+      "IsPreset": true
+    },
+    {
+      "Id": "5215fb67-708e-47ac-8cff-24a742f288f4",
+      "Name": "Vuelta a Espa\u00F1a",
+      "TargetKm": 3270,
+      "StartDate": "2026-03-12T00:00:00+01:00",
+      "IsPreset": true
+    },
+    {
+      "Id": "317f0c9e-cc5a-4601-b055-dc555706ce44",
+      "Name": "Ride Across Poland (N\u2013S)",
+      "TargetKm": 630,
+      "StartDate": "2026-03-12T00:00:00+01:00",
+      "IsPreset": true
+    },
+    {
+      "Id": "c04347a7-2936-44a2-900e-e66c943c75fc",
+      "Name": "Warsaw \u2192 Paris",
+      "TargetKm": 1430,
+      "StartDate": "2026-03-12T00:00:00+01:00",
+      "IsPreset": true
+    },
+    {
+      "Id": "d31348f4-4b86-4bdb-8aea-3d664c7367e8",
+      "Name": "Warsaw \u2192 Rome",
+      "TargetKm": 2100,
+      "StartDate": "2026-03-12T00:00:00+01:00",
+      "IsPreset": true
+    }
+  ]
+}

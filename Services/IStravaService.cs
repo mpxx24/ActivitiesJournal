@@ -10,4 +10,5 @@ public interface IStravaService
     Task<string> RefreshAccessTokenAsync();
     Task ExchangeCodeForTokenAsync(string code);
     string GetAuthorizationUrl();
+    void InvalidateCache();
 }

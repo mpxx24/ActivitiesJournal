@@ -2,6 +2,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddMemoryCache();
+builder.Services.AddApplicationInsightsTelemetry();
 
 // Ensure environment variables are loaded (they should be by default, but let's be explicit)
 // The configuration system automatically reads:

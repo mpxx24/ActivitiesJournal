@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using ActivitiesJournal.Models;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace ActivitiesJournal.Services;
@@ -9,12 +10,21 @@ public class StravaService : IStravaService
 {
     private readonly StravaConfig _config;
     private readonly HttpClient _httpClient;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<StravaService> _logger;
 
-    public StravaService(IOptions<StravaConfig> config, HttpClient httpClient, ILogger<StravaService> logger)
+    private const string AllActivitiesCacheKey = "strava_all_activities";
+    private static string PageCacheKey(int page, int perPage) => $"strava_page_{page}_{perPage}";
+    private static string ActivityCacheKey(long id) => $"strava_activity_{id}";
+
+    private static readonly TimeSpan ListCacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan DetailCacheDuration = TimeSpan.FromMinutes(30);
+
+    public StravaService(IOptions<StravaConfig> config, HttpClient httpClient, IMemoryCache cache, ILogger<StravaService> logger)
     {
         _config = config.Value;
         _httpClient = httpClient;
+        _cache = cache;
         _logger = logger;
         
         // Log configuration status for debugging
@@ -42,7 +52,25 @@ public class StravaService : IStravaService
         }
     }
 
+    public void InvalidateCache()
+    {
+        _cache.Remove(AllActivitiesCacheKey);
+        // Page-level keys use a sliding expiry so they'll expire naturally;
+        // removing the all-activities key is enough for the common case.
+    }
+
     public async Task<List<StravaActivity>> GetActivitiesAsync(int page = 1, int perPage = 30)
+    {
+        var cacheKey = PageCacheKey(page, perPage);
+        if (_cache.TryGetValue(cacheKey, out List<StravaActivity>? cached) && cached != null)
+            return cached;
+
+        var result = await FetchActivitiesAsync(page, perPage);
+        _cache.Set(cacheKey, result, ListCacheDuration);
+        return result;
+    }
+
+    private async Task<List<StravaActivity>> FetchActivitiesAsync(int page, int perPage)
     {
         try
         {
@@ -105,20 +133,36 @@ public class StravaService : IStravaService
 
     public async Task<List<StravaActivity>> GetAllActivitiesAsync()
     {
+        if (_cache.TryGetValue(AllActivitiesCacheKey, out List<StravaActivity>? cached) && cached != null)
+            return cached;
+
         var all = new List<StravaActivity>();
         int page = 1;
         const int perPage = 200;
         while (true)
         {
-            var batch = await GetActivitiesAsync(page, perPage);
+            var batch = await FetchActivitiesAsync(page, perPage);
             all.AddRange(batch);
             if (batch.Count < perPage) break;
             page++;
         }
+        _cache.Set(AllActivitiesCacheKey, all, ListCacheDuration);
         return all;
     }
 
     public async Task<StravaActivity?> GetActivityByIdAsync(long activityId)
+    {
+        var cacheKey = ActivityCacheKey(activityId);
+        if (_cache.TryGetValue(cacheKey, out StravaActivity? cached) && cached != null)
+            return cached;
+
+        var result = await FetchActivityByIdAsync(activityId);
+        if (result != null)
+            _cache.Set(cacheKey, result, DetailCacheDuration);
+        return result;
+    }
+
+    private async Task<StravaActivity?> FetchActivityByIdAsync(long activityId)
     {
         try
         {
@@ -202,7 +246,7 @@ public class StravaService : IStravaService
             if (!string.IsNullOrEmpty(newAccessToken))
             {
                 _config.AccessToken = newAccessToken;
-                _httpClient.DefaultRequestHeaders.Authorization = 
+                _httpClient.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", newAccessToken);
             }
 
@@ -211,6 +255,7 @@ public class StravaService : IStravaService
                 _config.RefreshToken = newRefreshToken;
             }
 
+            InvalidateCache();
             return newAccessToken ?? string.Empty;
         }
         catch (Exception ex)
