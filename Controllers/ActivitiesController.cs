@@ -484,6 +484,78 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> Analysis(int? year = null)
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+
+            var availableYears = rides.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
+            int selectedYear = year ?? DateTime.Now.Year;
+            var yearRides = rides.Where(a => a.StartDateLocal.Year == selectedYear).ToList();
+
+            // ── Ride type clustering ─────────────────────────────────────────
+            // Rules are applied in priority order (most specific first)
+            static Models.RideType Classify(Models.StravaActivity a)
+            {
+                double distKm = a.Distance / 1000.0;
+                double speedKmh = a.AverageSpeed * 3.6;
+                if (distKm >= 130) return Models.RideType.Epic;
+                if (distKm >= 50 && speedKmh >= 34) return Models.RideType.Race;
+                if (speedKmh >= 30 || (distKm >= 40 && speedKmh >= 28)) return Models.RideType.Tempo;
+                if (distKm >= 40) return Models.RideType.Endurance;
+                return Models.RideType.Recovery;
+            }
+
+            var classified = yearRides.Select(a => new Models.ClassifiedRide { Activity = a, RideType = Classify(a) })
+                                      .OrderByDescending(r => r.Activity.StartDateLocal).ToList();
+
+            var typeCounts = classified.GroupBy(r => r.RideType)
+                                       .ToDictionary(g => g.Key, g => g.Count());
+
+            // ── Speed zones ──────────────────────────────────────────────────
+            var zones = new[]
+            {
+                new Models.SpeedZoneData { Label = "< 20 km/h",    MinKmh = 0,  MaxKmh = 20,  Color = "#6c757d" },
+                new Models.SpeedZoneData { Label = "20–25 km/h",   MinKmh = 20, MaxKmh = 25,  Color = "#17a2b8" },
+                new Models.SpeedZoneData { Label = "25–30 km/h",   MinKmh = 25, MaxKmh = 30,  Color = "#28a745" },
+                new Models.SpeedZoneData { Label = "30–35 km/h",   MinKmh = 30, MaxKmh = 35,  Color = "#ffc107" },
+                new Models.SpeedZoneData { Label = "35–40 km/h",   MinKmh = 35, MaxKmh = 40,  Color = "#fd7e14" },
+                new Models.SpeedZoneData { Label = "> 40 km/h",    MinKmh = 40, MaxKmh = 999, Color = "#dc3545" },
+            }.ToList();
+
+            foreach (var r in yearRides)
+            {
+                double spd = r.AverageSpeed * 3.6;
+                var zone = zones.FirstOrDefault(z => spd >= z.MinKmh && spd < z.MaxKmh);
+                if (zone != null)
+                {
+                    zone.RideCount++;
+                    zone.TotalDistanceKm += r.Distance / 1000.0;
+                    zone.TotalTimeHrs += r.MovingTime / 3600.0;
+                }
+            }
+
+            var vm = new Models.AnalysisViewModel
+            {
+                Year = selectedYear,
+                AvailableYears = availableYears,
+                ClassifiedRides = classified,
+                TypeCounts = typeCounts,
+                SpeedZones = zones,
+            };
+
+            return View(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading analysis");
+            ViewBag.Error = "Failed to load analysis data.";
+            return View(new Models.AnalysisViewModel { Year = DateTime.Now.Year });
+        }
+    }
+
     public async Task<IActionResult> Heatmap()
     {
         try
