@@ -1615,6 +1615,52 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> ActiveMinutes(int weeks = 26)
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var today = DateTime.Today;
+            const int whoTarget = 150; // minutes/week
+
+            // Build weekly buckets going back `weeks` weeks
+            var weekData = Enumerable.Range(0, weeks).Select(w =>
+            {
+                var weekStart = today.AddDays(-w * 7 - (int)today.DayOfWeek + (today.DayOfWeek == DayOfWeek.Sunday ? -6 : 1));
+                var weekEnd = weekStart.AddDays(6);
+                var acts = all.Where(a => a.StartDateLocal.Date >= weekStart && a.StartDateLocal.Date <= weekEnd).ToList();
+                int rideMin = acts.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").Sum(a => a.MovingTime / 60);
+                int walkMin = acts.Where(a => a.SportType is "Walk" or "Hike" or "VirtualWalk").Sum(a => a.MovingTime / 60);
+                int otherMin = acts.Where(a => a.SportType is not ("Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide" or "Walk" or "Hike" or "VirtualWalk")).Sum(a => a.MovingTime / 60);
+                return new { WeekStart = weekStart, Label = weekStart.ToString("MMM d"), RideMin = rideMin, WalkMin = walkMin, OtherMin = otherMin, TotalMin = rideMin + walkMin + otherMin };
+            }).Reverse().ToList();
+
+            // Average of last 8 full weeks (excluding current partial week)
+            var completedWeeks = weekData.SkipLast(1).TakeLast(8).ToList();
+            double avgMin = completedWeeks.Any() ? completedWeeks.Average(w => w.TotalMin) : 0;
+
+            // Current week
+            var currentWeek = weekData.Last();
+            int weeksAboveTarget = weekData.Count(w => w.TotalMin >= whoTarget);
+
+            ViewBag.Weeks = weekData;
+            ViewBag.WhoTarget = whoTarget;
+            ViewBag.AvgMin = (int)avgMin;
+            ViewBag.CurrentMin = currentWeek.TotalMin;
+            ViewBag.WeeksAboveTarget = weeksAboveTarget;
+            ViewBag.TotalWeeks = weeks;
+            ViewBag.CompliancePct = weeks > 0 ? (int)(weeksAboveTarget * 100.0 / weeks) : 0;
+
+            return View();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading active minutes");
+            ViewBag.Error = "Failed to load active minutes data.";
+            return View();
+        }
+    }
+
     public async Task<IActionResult> YearInReview(int? year = null)
     {
         try

@@ -1,0 +1,165 @@
+@{
+    ViewData["Title"] = "Active Minutes";
+    int whoTarget = ViewBag.WhoTarget ?? 150;
+    int avgMin = ViewBag.AvgMin ?? 0;
+    int currentMin = ViewBag.CurrentMin ?? 0;
+    int weeksAbove = ViewBag.WeeksAboveTarget ?? 0;
+    int totalWeeks = ViewBag.TotalWeeks ?? 26;
+    int compliance = ViewBag.CompliancePct ?? 0;
+
+    dynamic weeks = ViewBag.Weeks;
+
+    string AvgBadge() {
+        if (avgMin >= whoTarget) return "text-success";
+        if (avgMin >= whoTarget * 0.75) return "text-warning";
+        return "text-danger";
+    }
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-heart-pulse me-2 text-warning"></i>Active Minutes</h2>
+    <span class="text-muted small">WHO recommends 150 min/week of moderate aerobic activity</span>
+</div>
+
+@if (ViewBag.Error != null) { <div class="alert alert-danger">@ViewBag.Error</div> }
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center">
+            <div class="card-body py-3">
+                <div class="text-muted small mb-1">This Week</div>
+                <div class="fw-bold fs-3 @(currentMin >= whoTarget ? "text-success" : currentMin >= whoTarget * 0.5 ? "text-warning" : "text-danger")">@currentMin</div>
+                <div class="text-muted small">min so far</div>
+                <div class="mt-1">
+                    @if (currentMin >= whoTarget)
+                    { <span class="badge bg-success">Target met ✓</span> }
+                    else
+                    { <span class="badge bg-secondary">@(whoTarget - currentMin) min to go</span> }
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center">
+            <div class="card-body py-3">
+                <div class="text-muted small mb-1">8-Week Average</div>
+                <div class="fw-bold fs-3 @AvgBadge()">@avgMin</div>
+                <div class="text-muted small">min/week</div>
+                <div class="mt-1">
+                    <span class="badge @(avgMin >= whoTarget ? "bg-success" : "bg-secondary")">Goal: @whoTarget min</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center">
+            <div class="card-body py-3">
+                <div class="text-muted small mb-1">Weeks at Target</div>
+                <div class="fw-bold fs-3 text-info">@weeksAbove / @totalWeeks</div>
+                <div class="text-muted small">last @totalWeeks weeks</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center">
+            <div class="card-body py-3">
+                <div class="text-muted small mb-1">Compliance</div>
+                <div class="fw-bold fs-3 @(compliance >= 75 ? "text-success" : compliance >= 50 ? "text-warning" : "text-danger")">@compliance%</div>
+                <div class="text-muted small">of weeks hit target</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- WHO progress bar for current week -->
+<div class="card bg-dark border-secondary mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between mb-1 small text-muted">
+            <span>This week's progress toward @whoTarget min</span>
+            <span>@currentMin / @whoTarget min</span>
+        </div>
+        @{int pct = Math.Min(100, whoTarget > 0 ? currentMin * 100 / whoTarget : 0);}
+        <div class="progress" style="height:18px">
+            <div class="progress-bar @(pct >= 100 ? "bg-success" : pct >= 50 ? "bg-warning" : "bg-danger")"
+                 role="progressbar" style="width:@pct%">@pct%</div>
+        </div>
+    </div>
+</div>
+
+<!-- Stacked bar chart -->
+<div class="card bg-dark border-secondary">
+    <div class="card-header border-secondary fw-semibold">
+        Weekly Active Minutes
+        <span class="ms-3 small">
+            <span style="display:inline-block;width:12px;height:12px;background:rgba(253,197,37,0.8);border-radius:2px"></span> Rides
+            <span class="ms-2" style="display:inline-block;width:12px;height:12px;background:rgba(34,197,94,0.8);border-radius:2px"></span> Walks
+            <span class="ms-2" style="display:inline-block;width:12px;height:12px;background:rgba(99,102,241,0.7);border-radius:2px"></span> Other
+        </span>
+    </div>
+    <div class="card-body">
+        <canvas id="activeChart" height="100"></canvas>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(((IEnumerable<dynamic>)ViewBag.Weeks).Select(w => (string)w.Label).ToList()));
+    var rides  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(((IEnumerable<dynamic>)ViewBag.Weeks).Select(w => (int)w.RideMin).ToList()));
+    var walks  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(((IEnumerable<dynamic>)ViewBag.Weeks).Select(w => (int)w.WalkMin).ToList()));
+    var other  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(((IEnumerable<dynamic>)ViewBag.Weeks).Select(w => (int)w.OtherMin).ToList()));
+    var target = @whoTarget;
+
+    new Chart(document.getElementById("activeChart"), {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [
+                { label: "Rides", data: rides, backgroundColor: "rgba(253,197,37,0.8)", stack: "a" },
+                { label: "Walks", data: walks, backgroundColor: "rgba(34,197,94,0.8)", stack: "a" },
+                { label: "Other", data: other, backgroundColor: "rgba(99,102,241,0.7)", stack: "a" },
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: "#adb5bd" } },
+                annotation: {},
+                tooltip: { callbacks: { footer: items => "Total: " + items.reduce((s, i) => s + i.parsed.y, 0) + " min" } }
+            },
+            scales: {
+                x: { stacked: true, ticks: { color: "#adb5bd", maxRotation: 45 }, grid: { color: "#343a40" } },
+                y: {
+                    stacked: true, ticks: { color: "#adb5bd", callback: v => v + " min" }, grid: { color: "#343a40" },
+                    // Draw the 150-min target line via a plugin
+                }
+            }
+        },
+        plugins: [{
+            id: "targetLine",
+            afterDraw(chart) {
+                var yAxis = chart.scales.y;
+                var xAxis = chart.scales.x;
+                if (!yAxis || !xAxis) return;
+                var y = yAxis.getPixelForValue(target);
+                var ctx = chart.ctx;
+                ctx.save();
+                ctx.beginPath();
+                ctx.setLineDash([6, 4]);
+                ctx.strokeStyle = "rgba(248,113,113,0.9)";
+                ctx.lineWidth = 2;
+                ctx.moveTo(xAxis.left, y);
+                ctx.lineTo(xAxis.right, y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = "rgba(248,113,113,0.9)";
+                ctx.font = "11px sans-serif";
+                ctx.fillText("WHO 150 min", xAxis.left + 4, y - 5);
+                ctx.restore();
+            }
+        }]
+    });
+})();
+</script>
+}
