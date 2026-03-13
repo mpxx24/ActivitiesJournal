@@ -253,9 +253,20 @@
 
                 @if (Model.SplitsMetric != null && Model.SplitsMetric.Any())
                 {
+                    bool isWalkActivity = Model.SportType is "Walk" or "Hike";
+
                     <div class="card mb-4">
                         <div class="card-header">
-                            <h5 class="mb-0">Splits (Metric)</h5>
+                            <h5 class="mb-0"><i class="bi bi-triangle me-2"></i>Elevation Profile</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="elevChart" height="80"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Splits (km)</h5>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -265,7 +276,8 @@
                                             <th>Split</th>
                                             <th>Distance (km)</th>
                                             <th>Time</th>
-                                            <th>Avg Speed (km/h)</th>
+                                            <th>@(isWalkActivity ? "Pace (/km)" : "Avg Speed (km/h)")</th>
+                                            <th>Elev Δ (m)</th>
                                             @if (Model.SplitsMetric.Any(s => s.AverageHeartrate.HasValue))
                                             {
                                                 <th>Avg HR (bpm)</th>
@@ -275,11 +287,25 @@
                                     <tbody>
                                         @foreach (var split in Model.SplitsMetric)
                                         {
+                                            string speedOrPace;
+                                            if (isWalkActivity && split.Distance > 0)
+                                            {
+                                                double sPerKm = split.MovingTime / (split.Distance / 1000.0);
+                                                int pm = (int)(sPerKm / 60), ps = (int)(sPerKm % 60);
+                                                speedOrPace = $"{pm}:{ps:D2}";
+                                            }
+                                            else
+                                            {
+                                                speedOrPace = (split.AverageSpeed * 3.6).ToString("0.00");
+                                            }
                                             <tr>
                                                 <td>@split.SplitNumber</td>
                                                 <td>@((split.Distance / 1000.0).ToString("0.00"))</td>
                                                 <td>@TimeSpan.FromSeconds(split.ElapsedTime).ToString(@"mm\:ss")</td>
-                                                <td>@((split.AverageSpeed * 3.6).ToString("0.00"))</td>
+                                                <td>@speedOrPace</td>
+                                                <td class="@(split.ElevationDifference >= 0 ? "text-success" : "text-danger")">
+                                                    @(split.ElevationDifference >= 0 ? "+" : "")@split.ElevationDifference.ToString("0")
+                                                </td>
                                                 @if (Model.SplitsMetric.Any(s => s.AverageHeartrate.HasValue))
                                                 {
                                                     <td>@(split.AverageHeartrate?.ToString() ?? "-")</td>
@@ -381,3 +407,54 @@
         </a>
     }
 </div>
+
+@if (Model?.SplitsMetric != null && Model.SplitsMetric.Any())
+{
+    var inv2 = System.Globalization.CultureInfo.InvariantCulture;
+    // Build cumulative elevation array from splits
+    double cumElev = 0;
+    var elevPoints = new List<string>();
+    var kmLabels = new List<string>();
+    foreach (var split in Model.SplitsMetric)
+    {
+        cumElev += split.ElevationDifference;
+        elevPoints.Add(Math.Round(cumElev, 1).ToString(inv2));
+        kmLabels.Add($"km {split.SplitNumber}");
+    }
+    string elevJson = "[" + string.Join(",", elevPoints) + "]";
+    string labJson  = System.Text.Json.JsonSerializer.Serialize(kmLabels.ToArray());
+
+    @section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+    (function() {
+        const ctx = document.getElementById('elevChart');
+        if (!ctx) return;
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: @Html.Raw(labJson),
+                datasets: [{
+                    label: 'Elevation Δ (m)',
+                    data: @Html.Raw(elevJson),
+                    borderColor: '#ffc107',
+                    backgroundColor: 'rgba(255,193,7,0.15)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    fill: true,
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' },
+                         title: { display: true, text: 'Cumulative Δ elevation (m)', color: '#adb5bd' } }
+                }
+            }
+        });
+    })();
+    </script>
+    }
+}
