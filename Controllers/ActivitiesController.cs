@@ -85,6 +85,117 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> RouteLibrary(string? type = null)
+    {
+        try
+        {
+            type ??= "Ride";
+            bool isWalk = type == "Walk";
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var activities = FilterByActivityType(all, type)
+                .Where(a => a.StartLatlng?.Count >= 2 && a.Distance > 500)
+                .OrderBy(a => a.StartDateLocal)
+                .ToList();
+
+            // Haversine distance in meters between two lat/lng points
+            static double HavDist(double lat1, double lon1, double lat2, double lon2)
+            {
+                const double R = 6371000;
+                double dLat = (lat2 - lat1) * Math.PI / 180;
+                double dLon = (lon2 - lon1) * Math.PI / 180;
+                double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
+                         + Math.Cos(lat1 * Math.PI / 180) * Math.Cos(lat2 * Math.PI / 180)
+                         * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+                return R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+            }
+
+            const double startThresholdM = 400;   // start within 400m
+            const double distTolerancePct = 0.12; // distance within 12%
+
+            // Greedy grouping
+            var groups = new List<List<Models.StravaActivity>>();
+            var assigned = new HashSet<long>();
+
+            foreach (var act in activities)
+            {
+                if (assigned.Contains(act.Id)) continue;
+                double lat = act.StartLatlng![0];
+                double lon = act.StartLatlng[1];
+                double dist = act.Distance;
+
+                // Try to find an existing group whose representative matches
+                bool found = false;
+                foreach (var grp in groups)
+                {
+                    var rep = grp[0];
+                    double rLat = rep.StartLatlng![0];
+                    double rLon = rep.StartLatlng[1];
+                    double rDist = rep.Distance;
+                    if (HavDist(lat, lon, rLat, rLon) <= startThresholdM
+                        && Math.Abs(dist - rDist) / Math.Max(rDist, 1) <= distTolerancePct)
+                    {
+                        grp.Add(act);
+                        assigned.Add(act.Id);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    groups.Add(new List<Models.StravaActivity> { act });
+                    assigned.Add(act.Id);
+                }
+            }
+
+            // Only show routes done at least 2 times
+            var routeGroups = groups.Where(g => g.Count >= 2)
+                .OrderByDescending(g => g.Count)
+                .Select((g, idx) =>
+                {
+                    var rep = g.First();
+                    double avgSpd = g.Average(a => a.AverageSpeed * 3.6);
+                    double bestSpd = g.Max(a => a.AverageSpeed * 3.6);
+                    double avgPace = g.Average(a => a.Distance > 0 ? a.MovingTime / (a.Distance / 1000.0) / 60.0 : 0);
+                    double bestPace = g.Where(a => a.Distance > 0).Min(a => a.MovingTime / (a.Distance / 1000.0) / 60.0);
+                    string label = g.GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                        .OrderByDescending(gg => gg.Count()).First().Key;
+                    return new Models.RouteGroup
+                    {
+                        RouteId = idx + 1,
+                        Label = label,
+                        DistanceKm = Math.Round(g.Average(a => a.Distance) / 1000.0, 1),
+                        StartLat = rep.StartLatlng![0],
+                        StartLng = rep.StartLatlng[1],
+                        Count = g.Count,
+                        FirstDate = g.Min(a => a.StartDateLocal),
+                        LastDate = g.Max(a => a.StartDateLocal),
+                        AvgSpeedKmh = Math.Round(avgSpd, 1),
+                        BestSpeedKmh = Math.Round(bestSpd, 1),
+                        AvgPaceMinKm = Math.Round(avgPace, 2),
+                        BestPaceMinKm = Math.Round(bestPace, 2),
+                        AvgElevationM = Math.Round(g.Average(a => a.TotalElevationGain), 0),
+                        Activities = g.OrderByDescending(a => a.StartDateLocal).ToList(),
+                    };
+                }).ToList();
+
+            return View(new Models.RouteLibraryViewModel
+            {
+                ActivityType = type,
+                ActivityTypeLabel = ActivityTypeLabel(type),
+                IsWalk = isWalk,
+                Routes = routeGroups,
+                TotalActivities = activities.Count,
+                GroupedActivities = routeGroups.Sum(r => r.Count),
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading route library");
+            ViewBag.Error = "Failed to load route library.";
+            return View(new Models.RouteLibraryViewModel());
+        }
+    }
+
     public async Task<IActionResult> WeatherInsights(string? type = null, int limit = 100)
     {
         try

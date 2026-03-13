@@ -1,0 +1,117 @@
+@model ActivitiesJournal.Models.RouteLibraryViewModel
+@{
+    ViewData["Title"] = "Route Library";
+
+    string FormatPace(double v) {
+        int m = (int)v; int s = (int)Math.Round((v - m) * 60);
+        return $"{m}:{s:D2} /km";
+    }
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-signpost-2 me-2 text-warning"></i>Route Library</h2>
+</div>
+
+<div class="mb-3">
+    <a href="?type=Ride" class="btn btn-sm @(Model.ActivityType == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1"><i class="bi bi-bicycle me-1"></i>Rides</a>
+    <a href="?type=Walk" class="btn btn-sm @(Model.ActivityType == "Walk" ? "btn-success" : "btn-outline-secondary") me-1"><i class="bi bi-person-walking me-1"></i>Walks</a>
+    <a href="?type=All"  class="btn btn-sm @(Model.ActivityType == "All"  ? "btn-primary"  : "btn-outline-secondary")"><i class="bi bi-grid me-1"></i>All</a>
+    <span class="ms-3 text-muted small">@Model.GroupedActivities / @Model.TotalActivities activities matched to @Model.Routes.Count repeat routes</span>
+</div>
+
+@if (ViewBag.Error != null) { <div class="alert alert-danger">@ViewBag.Error</div> }
+
+@if (!Model.Routes.Any())
+{
+    <div class="alert alert-info">No repeated routes detected yet. Routes appear when you do the same start location and distance at least twice.</div>
+}
+else
+{
+    <div class="accordion" id="routeAccordion">
+        @foreach (var route in Model.Routes)
+        {
+            string collapseId = $"route-{route.RouteId}";
+            <div class="accordion-item mb-2 border rounded">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-dark text-light" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#@collapseId">
+                        <div class="d-flex align-items-center gap-3 w-100">
+                            <span class="badge bg-warning text-dark rounded-pill">×@route.Count</span>
+                            <span class="fw-semibold text-truncate" style="max-width:250px">@route.Label</span>
+                            <span class="text-muted small ms-auto me-3">@route.DistanceKm km &middot;
+                                @if (Model.IsWalk)
+                                { @($"avg {FormatPace(route.AvgPaceMinKm)}") }
+                                else
+                                { @($"avg {route.AvgSpeedKmh:0.0} km/h") }
+                            </span>
+                            <span class="text-muted small">@route.FirstDate.Year – @route.LastDate.Year</span>
+                        </div>
+                    </button>
+                </h2>
+                <div id="@collapseId" class="accordion-collapse collapse">
+                    <div class="accordion-body p-3">
+                        <!-- Stats row -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-6 col-md-3 text-center">
+                                <div class="fw-bold fs-5">@route.Count</div>
+                                <div class="small text-muted">Times done</div>
+                            </div>
+                            <div class="col-6 col-md-3 text-center">
+                                <div class="fw-bold fs-5">@route.DistanceKm km</div>
+                                <div class="small text-muted">Avg distance</div>
+                            </div>
+                            @if (Model.IsWalk)
+                            {
+                                <div class="col-6 col-md-3 text-center">
+                                    <div class="fw-bold fs-5">@FormatPace(route.AvgPaceMinKm)</div>
+                                    <div class="small text-muted">Avg pace</div>
+                                </div>
+                                <div class="col-6 col-md-3 text-center">
+                                    <div class="fw-bold fs-5 text-success">@FormatPace(route.BestPaceMinKm)</div>
+                                    <div class="small text-muted">Best pace</div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="col-6 col-md-3 text-center">
+                                    <div class="fw-bold fs-5">@route.AvgSpeedKmh km/h</div>
+                                    <div class="small text-muted">Avg speed</div>
+                                </div>
+                                <div class="col-6 col-md-3 text-center">
+                                    <div class="fw-bold fs-5 text-success">@route.BestSpeedKmh km/h</div>
+                                    <div class="small text-muted">Best speed</div>
+                                </div>
+                            }
+                        </div>
+                        <!-- Activities table -->
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Date</th><th>Activity</th><th class="text-end">km</th>
+                                    <th class="text-end">@(Model.IsWalk ? "Pace" : "Avg km/h")</th>
+                                    <th class="text-end">Elev m</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var a in route.Activities.Take(10))
+                                {
+                                    double distKm = a.Distance / 1000.0;
+                                    string speedOrPace = Model.IsWalk && distKm > 0
+                                        ? FormatPace(a.MovingTime / distKm / 60.0)
+                                        : $"{(a.AverageSpeed * 3.6):0.0}";
+                                    <tr>
+                                        <td class="text-muted small">@a.StartDateLocal.ToString("d MMM yyyy")</td>
+                                        <td><a href="/Activities/Details/@a.Id" class="text-truncate d-block" style="max-width:200px">@a.Name</a></td>
+                                        <td class="text-end">@distKm.ToString("0.0")</td>
+                                        <td class="text-end">@speedOrPace</td>
+                                        <td class="text-end">@a.TotalElevationGain.ToString("0")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
