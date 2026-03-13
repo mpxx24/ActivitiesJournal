@@ -20,16 +20,49 @@ public class ActivitiesController : Controller
         _memoryCache = memoryCache;
     }
 
-    public async Task<IActionResult> Index(int page = 1, int perPage = 30)
+    public async Task<IActionResult> Index(int page = 1, int perPage = 30,
+        string? q = null, string? sport = null,
+        DateTime? dateFrom = null, DateTime? dateTo = null,
+        double? minKm = null, double? maxKm = null)
     {
         try
         {
-            var activities = await _stravaService.GetActivitiesAsync(page, perPage);
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var filtered = all.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(q))
+                filtered = filtered.Where(a => a.Name.Contains(q, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(sport))
+                filtered = sport switch {
+                    "Ride" => filtered.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide"),
+                    "Walk" => filtered.Where(a => a.SportType is "Walk" or "Hike" or "VirtualWalk"),
+                    _ => filtered.Where(a => a.SportType == sport)
+                };
+
+            if (dateFrom.HasValue) filtered = filtered.Where(a => a.StartDateLocal.Date >= dateFrom.Value.Date);
+            if (dateTo.HasValue)   filtered = filtered.Where(a => a.StartDateLocal.Date <= dateTo.Value.Date);
+            if (minKm.HasValue)    filtered = filtered.Where(a => a.Distance / 1000.0 >= minKm.Value);
+            if (maxKm.HasValue)    filtered = filtered.Where(a => a.Distance / 1000.0 <= maxKm.Value);
+
+            var list = filtered.OrderByDescending(a => a.StartDateLocal).ToList();
+            int totalCount = list.Count;
+            var paged = list.Skip((page - 1) * perPage).Take(perPage).ToList();
+
             ViewBag.CurrentPage = page;
             ViewBag.PerPage = perPage;
-            ViewBag.HasMore = activities.Count == perPage;
-            
-            return View(activities);
+            ViewBag.HasMore = page * perPage < totalCount;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.Q = q;
+            ViewBag.Sport = sport;
+            ViewBag.DateFrom = dateFrom?.ToString("yyyy-MM-dd");
+            ViewBag.DateTo = dateTo?.ToString("yyyy-MM-dd");
+            ViewBag.MinKm = minKm;
+            ViewBag.MaxKm = maxKm;
+            ViewBag.IsFiltered = !string.IsNullOrWhiteSpace(q) || !string.IsNullOrWhiteSpace(sport)
+                || dateFrom.HasValue || dateTo.HasValue || minKm.HasValue || maxKm.HasValue;
+
+            return View(paged);
         }
         catch (UnauthorizedAccessException ex)
         {

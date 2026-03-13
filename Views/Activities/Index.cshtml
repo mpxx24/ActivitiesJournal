@@ -1,159 +1,186 @@
 @model List<ActivitiesJournal.Models.StravaActivity>
 @{
-    ViewData["Title"] = "My Activities";
+    ViewData["Title"] = "Activities";
+    string? q = ViewBag.Q;
+    string? sport = ViewBag.Sport;
+    string? dateFrom = ViewBag.DateFrom;
+    string? dateTo = ViewBag.DateTo;
+    double? minKm = ViewBag.MinKm as double?;
+    double? maxKm = ViewBag.MaxKm as double?;
+    bool isFiltered = ViewBag.IsFiltered == true;
+    int totalCount = ViewBag.TotalCount ?? 0;
+
+    string GetSportIconClass(string? sportType) => sportType switch {
+        "Run" or "TrailRun" => "bi-person-running",
+        "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide" => "bi-bicycle",
+        "Walk" or "Hike" or "VirtualWalk" => "bi-person-walking",
+        "Swim" => "bi-droplet",
+        "Workout" or "WeightTraining" => "bi-lightning-charge",
+        _ => "bi-activity"
+    };
 }
 
-@functions {
-    string GetSportIconClass(string? sportType)
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-list-ul me-2 text-warning"></i>Activities</h2>
+    @if (totalCount > 0)
     {
-        return sportType switch
-        {
-            "Run" or "TrailRun" => "bi-person-running",
-            "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide" => "bi-bicycle",
-            "Walk" or "Hike" => "bi-signpost",
-            "Swim" => "bi-droplet",
-            "Workout" or "WeightTraining" => "bi-lightning-charge",
-            _ => "bi-question-circle"
-        };
+        <span class="text-muted small">@totalCount result@(totalCount != 1 ? "s" : "")</span>
     }
+</div>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger"><strong>Error:</strong> @ViewBag.Error</div>
 }
 
-<div class="container-fluid">
-    <div class="row mb-4">
-        <div class="col">
-            <h1>My Activities</h1>
-            <p class="text-muted">View all your Strava activities</p>
+<!-- Search & filter bar -->
+<form method="get" class="card bg-dark border-secondary mb-4">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-3">
+                <input type="text" name="q" value="@q" placeholder="Search name…"
+                       class="form-control form-control-sm bg-dark text-light border-secondary" />
+            </div>
+            <div class="col-6 col-md-2">
+                <select name="sport" class="form-select form-select-sm bg-dark text-light border-secondary">
+                    <option value="" selected="@(string.IsNullOrEmpty(sport))">All types</option>
+                    <option value="Ride" selected="@(sport == "Ride")">Rides</option>
+                    <option value="Walk" selected="@(sport == "Walk")">Walks</option>
+                    <option value="Run" selected="@(sport == "Run")">Runs</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <input type="date" name="dateFrom" value="@dateFrom"
+                       class="form-control form-control-sm bg-dark text-light border-secondary" title="From date" />
+            </div>
+            <div class="col-6 col-md-2">
+                <input type="date" name="dateTo" value="@dateTo"
+                       class="form-control form-control-sm bg-dark text-light border-secondary" title="To date" />
+            </div>
+            <div class="col-3 col-md-1">
+                <input type="number" name="minKm" value="@minKm" min="0" step="1" placeholder="Min km"
+                       class="form-control form-control-sm bg-dark text-light border-secondary" />
+            </div>
+            <div class="col-3 col-md-1">
+                <input type="number" name="maxKm" value="@maxKm" min="0" step="1" placeholder="Max km"
+                       class="form-control form-control-sm bg-dark text-light border-secondary" />
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-warning btn-sm"><i class="bi bi-search"></i></button>
+                @if (isFiltered)
+                {
+                    <a href="/Activities" class="btn btn-outline-secondary btn-sm ms-1" title="Clear filters"><i class="bi bi-x-lg"></i></a>
+                }
+            </div>
         </div>
     </div>
+</form>
 
-    @if (ViewBag.Error != null)
-    {
-        <div class="alert alert-danger" role="alert">
-            <strong>Error:</strong> @ViewBag.Error
-            <br />
-            <small>Make sure you have configured your Strava API credentials in User Secrets.</small>
-        </div>
-    }
+@if (Model != null && Model.Any())
+{
+    <div class="row">
+        @foreach (var activity in Model)
+        {
+            bool isWalk = activity.SportType is "Walk" or "Hike" or "VirtualWalk";
+            double distKm = activity.Distance / 1000.0;
+            string speedOrPace = isWalk && distKm > 0
+                ? $"{(int)(activity.MovingTime / 60.0 / distKm)}:{(int)Math.Round(((activity.MovingTime / 60.0 / distKm) - (int)(activity.MovingTime / 60.0 / distKm)) * 60):D2}/km"
+                : $"{(activity.AverageSpeed * 3.6):0.0} km/h";
 
-    @if (Model != null && Model.Any())
-    {
-        <div class="row">
-            @foreach (var activity in Model)
-            {
-                <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-body">
-                            <h5 class="card-title d-flex align-items-center">
-                                <i class="bi @GetSportIconClass(activity.SportType) me-2" title="@activity.SportType"></i>
-                                <a href="@Url.Action("Details", "Activities", new { id = activity.Id })" class="text-decoration-none">
-                                    @activity.Name
-                                </a>
-                            </h5>
-                            <p class="card-text">
-                                <small class="text-muted">
-                                    <i class="bi bi-calendar"></i> @activity.StartDateLocal.ToString("MMM dd, yyyy HH:mm")
-                                </small>
-                            </p>
-                            <div class="row g-2 mt-2">
-                                <div class="col-6">
-                                    <small class="text-muted d-block">Distance</small>
-                                    <strong>@((activity.Distance / 1000.0).ToString("0.00")) km</strong>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted d-block">Time</small>
-                                    <strong>@TimeSpan.FromSeconds(activity.MovingTime).ToString(@"hh\:mm\:ss")</strong>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted d-block">Elevation</small>
-                                    <strong>@activity.TotalElevationGain m</strong>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted d-block">Type</small>
-                                    <strong>@activity.SportType</strong>
-                                </div>
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title d-flex align-items-center">
+                            <i class="bi @GetSportIconClass(activity.SportType) me-2" title="@activity.SportType"></i>
+                            <a href="@Url.Action("Details", "Activities", new { id = activity.Id })" class="text-decoration-none text-truncate">
+                                @activity.Name
+                            </a>
+                        </h5>
+                        <p class="card-text">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar me-1"></i>@activity.StartDateLocal.ToString("d MMM yyyy HH:mm")
+                            </small>
+                        </p>
+                        <div class="row g-2 mt-1">
+                            <div class="col-6">
+                                <small class="text-muted d-block">Distance</small>
+                                <strong>@distKm.ToString("0.0") km</strong>
                             </div>
-                            @if (activity.AverageSpeed > 0)
-                            {
-                                <div class="mt-2">
-                                    <small class="text-muted d-block">Avg Speed</small>
-                                    <strong>@((activity.AverageSpeed * 3.6).ToString("0.00")) km/h</strong>
-                                </div>
-                            }
-                            @if (activity.AverageHeartrate.HasValue)
-                            {
-                                <div class="mt-2">
-                                    <small class="text-muted d-block">Avg Heart Rate</small>
-                                    <strong>@activity.AverageHeartrate.Value bpm</strong>
-                                </div>
-                            }
-
-                            @if (activity.Map?.SummaryPolyline != null)
-                            {
-                                <div class="mt-3">
-                                    <div class="activity-map" id="map-@activity.Id" data-polyline="@activity.Map.SummaryPolyline"></div>
-                                </div>
-                            }
+                            <div class="col-6">
+                                <small class="text-muted d-block">Time</small>
+                                <strong>@TimeSpan.FromSeconds(activity.MovingTime).ToString(@"hh\:mm\:ss")</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Elevation</small>
+                                <strong>@activity.TotalElevationGain.ToString("0") m</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">@(isWalk ? "Pace" : "Avg Speed")</small>
+                                <strong>@speedOrPace</strong>
+                            </div>
                         </div>
-                        <div class="card-footer bg-transparent">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="badge bg-primary">
-                                    <i class="bi @GetSportIconClass(activity.SportType) me-1"></i>
-                                    @activity.SportType
-                                </span>
-                                <div>
-                                    @if (activity.KudosCount > 0)
-                                    {
-                                        <span class="badge bg-light text-dark me-1">
-                                            <i class="bi bi-heart"></i> @activity.KudosCount
-                                        </span>
-                                    }
-                                    @if (activity.CommentCount > 0)
-                                    {
-                                        <span class="badge bg-light text-dark">
-                                            <i class="bi bi-chat"></i> @activity.CommentCount
-                                        </span>
-                                    }
-                                </div>
+
+                        @if (activity.Map?.SummaryPolyline != null)
+                        {
+                            <div class="mt-3">
+                                <div class="activity-map" data-polyline="@activity.Map.SummaryPolyline"></div>
+                            </div>
+                        }
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-secondary">
+                                <i class="bi @GetSportIconClass(activity.SportType) me-1"></i>@activity.SportType
+                            </span>
+                            <div>
+                                @if (activity.KudosCount > 0)
+                                {
+                                    <span class="badge bg-light text-dark me-1"><i class="bi bi-hand-thumbs-up"></i> @activity.KudosCount</span>
+                                }
+                                @if (activity.AchievementCount > 0)
+                                {
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-trophy"></i> @activity.AchievementCount</span>
+                                }
                             </div>
                         </div>
                     </div>
                 </div>
-            }
-        </div>
-
-        <div class="row mt-4">
-            <div class="col">
-                <nav aria-label="Activities pagination">
-                    <ul class="pagination justify-content-center">
-                        @if (ViewBag.CurrentPage > 1)
-                        {
-                            <li class="page-item">
-                                <a class="page-link" href="@Url.Action("Index", new { page = ViewBag.CurrentPage - 1, perPage = ViewBag.PerPage })">Previous</a>
-                            </li>
-                        }
-                        <li class="page-item active">
-                            <span class="page-link">Page @ViewBag.CurrentPage</span>
-                        </li>
-                        @if (ViewBag.HasMore == true)
-                        {
-                            <li class="page-item">
-                                <a class="page-link" href="@Url.Action("Index", new { page = ViewBag.CurrentPage + 1, perPage = ViewBag.PerPage })">Next</a>
-                            </li>
-                        }
-                    </ul>
-                </nav>
             </div>
+        }
+    </div>
+
+    <div class="row mt-4">
+        <div class="col">
+            <nav aria-label="Activities pagination">
+                <ul class="pagination justify-content-center">
+                    @if (ViewBag.CurrentPage > 1)
+                    {
+                        <li class="page-item">
+                            <a class="page-link" href="@Url.Action("Index", new { page = ViewBag.CurrentPage - 1, perPage = ViewBag.PerPage, q, sport, dateFrom, dateTo, minKm, maxKm })">Previous</a>
+                        </li>
+                    }
+                    <li class="page-item active"><span class="page-link">Page @ViewBag.CurrentPage</span></li>
+                    @if (ViewBag.HasMore == true)
+                    {
+                        <li class="page-item">
+                            <a class="page-link" href="@Url.Action("Index", new { page = ViewBag.CurrentPage + 1, perPage = ViewBag.PerPage, q, sport, dateFrom, dateTo, minKm, maxKm })">Next</a>
+                        </li>
+                    }
+                </ul>
+            </nav>
         </div>
-    }
-    else
-    {
-        <div class="alert alert-info" role="alert">
-            <h4 class="alert-heading">No activities found</h4>
-            <p>You don't have any activities yet, or there was an issue loading them.</p>
-            <hr>
-            <p class="mb-0">
-                <a href="@Url.Action("Authorize", "Strava")" class="btn btn-primary">Connect to Strava</a>
-            </p>
-        </div>
-    }
-</div>
+    </div>
+}
+else
+{
+    <div class="alert alert-info">
+        @if (isFiltered)
+        {
+            <span>No activities match your filters. <a href="/Activities" class="alert-link">Clear filters</a></span>
+        }
+        else
+        {
+            <span>No activities found. <a href="/Strava/Authorize" class="alert-link">Connect Strava</a> to get started.</span>
+        }
+    </div>
+}
