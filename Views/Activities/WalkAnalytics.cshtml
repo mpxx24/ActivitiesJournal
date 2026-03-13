@@ -41,6 +41,40 @@
 }
 else
 {
+    <!-- Streak cards (all-time) -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-1">
+                        <i class="bi bi-fire fs-4 text-warning me-2"></i>
+                        <div class="stat-label mb-0">Current Walking Streak</div>
+                    </div>
+                    <div class="stat-value">@Model.CurrentStreakDays day@(Model.CurrentStreakDays != 1 ? "s" : "")</div>
+                    @if (Model.CurrentStreakDays == 0)
+                    {
+                        <small class="text-muted">No walk today yet</small>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-1">
+                        <i class="bi bi-trophy fs-4 text-warning me-2"></i>
+                        <div class="stat-label mb-0">Longest Walking Streak (all-time)</div>
+                    </div>
+                    <div class="stat-value">@Model.LongestStreakDays day@(Model.LongestStreakDays != 1 ? "s" : "")</div>
+                    @if (Model.LongestStreakDays > 0)
+                    {
+                        <small class="text-muted">@Model.LongestStreakStart.ToString("MMM d, yyyy") – @Model.LongestStreakEnd.ToString("MMM d, yyyy")</small>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Totals row -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">

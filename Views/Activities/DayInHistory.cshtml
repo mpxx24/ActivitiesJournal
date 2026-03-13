@@ -1,14 +1,22 @@
 @model ActivitiesJournal.Models.DayInHistoryViewModel
 @{
     ViewData["Title"] = "Day in History";
+    string actType = ViewBag.ActivityType ?? "Ride";
+    string typeLabel = ViewBag.ActivityTypeLabel ?? "Rides";
+    string actWord = actType == "Walk" ? "walk" : "ride";
 }
 
 <div class="container-fluid">
-    <div class="row mb-4">
+    <div class="row mb-2">
         <div class="col">
             <h1 class="page-title">On This Day <span class="text-warning">@Model.Today.ToString("MMMM d")</span></h1>
-            <p class="text-muted">Your rides on this date across all years</p>
+            <p class="text-muted">Your @typeLabel on this date across all years</p>
         </div>
+    </div>
+    <div class="mb-4">
+        <a href="?type=Ride" class="btn btn-sm @(actType == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1"><i class="bi bi-bicycle me-1"></i>Rides</a>
+        <a href="?type=Walk" class="btn btn-sm @(actType == "Walk" ? "btn-success" : "btn-outline-secondary") me-1"><i class="bi bi-person-walking me-1"></i>Walks</a>
+        <a href="?type=All"  class="btn btn-sm @(actType == "All"  ? "btn-primary"  : "btn-outline-secondary")"><i class="bi bi-grid me-1"></i>All</a>
     </div>
 
     @if (ViewBag.Error != null)
@@ -23,12 +31,12 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-1">
                         <i class="bi bi-fire fs-4 text-warning me-2"></i>
-                        <div class="stat-label mb-0">Current Riding Streak</div>
+                        <div class="stat-label mb-0">Current @typeLabel Streak</div>
                     </div>
                     <div class="stat-value">@Model.CurrentStreakDays day@(Model.CurrentStreakDays != 1 ? "s" : "")</div>
                     @if (Model.CurrentStreakDays == 0)
                     {
-                        <small class="text-muted">No ride today yet</small>
+                        <small class="text-muted">No @actWord today yet</small>
                     }
                 </div>
             </div>
@@ -38,7 +46,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-1">
                         <i class="bi bi-trophy fs-4 text-warning me-2"></i>
-                        <div class="stat-label mb-0">Longest Riding Streak</div>
+                        <div class="stat-label mb-0">Longest @typeLabel Streak</div>
                     </div>
                     <div class="stat-value">@Model.LongestStreakDays day@(Model.LongestStreakDays != 1 ? "s" : "")</div>
                     @if (Model.LongestStreakDays > 0)
@@ -52,7 +60,7 @@
 
     @if (!Model.ByYear.Any())
     {
-        <div class="alert alert-info">No rides recorded on @Model.Today.ToString("MMMM d") in previous years.</div>
+        <div class="alert alert-info">No @typeLabel recorded on @Model.Today.ToString("MMMM d") in previous years.</div>
     }
     else
     {
@@ -63,12 +71,13 @@
                 <div class="row g-3">
                     @foreach (var a in activities)
                     {
+                        string icon = a.SportType is "Walk" or "Hike" ? "bi-person-walking" : "bi-bicycle";
                         <div class="col-md-6 col-lg-4">
                             <div class="card h-100">
                                 <div class="card-body">
                                     <h6 class="card-title">
                                         <a asp-controller="Activities" asp-action="Details" asp-route-id="@a.Id" class="link-light text-decoration-none">
-                                            <i class="bi bi-bicycle me-1"></i>@a.Name
+                                            <i class="bi @icon me-1"></i>@a.Name
                                         </a>
                                     </h6>
                                     <div class="row g-2 mt-1">
@@ -81,8 +90,19 @@
                                             <strong>@a.TotalElevationGain.ToString("0") m</strong>
                                         </div>
                                         <div class="col-4">
-                                            <small class="text-muted d-block">Avg Speed</small>
-                                            <strong>@((a.AverageSpeed * 3.6).ToString("0.0")) km/h</strong>
+                                            @if (a.SportType is "Walk" or "Hike")
+                                            {
+                                                double distKm = a.Distance / 1000.0;
+                                                double sPerKm = distKm > 0 ? a.MovingTime / distKm : 0;
+                                                int pm = (int)(sPerKm / 60), ps = (int)(sPerKm % 60);
+                                                <small class="text-muted d-block">Pace</small>
+                                                <strong>@pm:@ps.ToString("D2") /km</strong>
+                                            }
+                                            else
+                                            {
+                                                <small class="text-muted d-block">Avg Speed</small>
+                                                <strong>@((a.AverageSpeed * 3.6).ToString("0.0")) km/h</strong>
+                                            }
                                         </div>
                                     </div>
                                 </div>

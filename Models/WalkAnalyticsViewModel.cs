@@ -39,4 +39,10 @@ public class WalkAnalyticsViewModel
 
     // Top 5 walks by distance
     public List<StravaActivity> Top5ByDistance { get; set; } = [];
+
+    // Streaks (all-time, not year-filtered)
+    public int CurrentStreakDays { get; set; }
+    public int LongestStreakDays { get; set; }
+    public DateTime LongestStreakStart { get; set; }
+    public DateTime LongestStreakEnd { get; set; }
 }

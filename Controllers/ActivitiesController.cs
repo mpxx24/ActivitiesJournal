@@ -870,6 +870,26 @@ public class ActivitiesController : Controller
                 Top5ByDistance   = yearWalks.OrderByDescending(a => a.Distance).Take(5).ToList(),
             };
 
+            // All-time walk streaks
+            var allWalkDates = walks.Select(a => a.StartDateLocal.Date).Distinct().OrderBy(d => d).ToList();
+            var walkDateSet  = allWalkDates.ToHashSet();
+            int curStreak = 0;
+            for (var chk = DateTime.Today; walkDateSet.Contains(chk); chk = chk.AddDays(-1)) curStreak++;
+
+            int longStreak = 0, sLen = allWalkDates.Any() ? 1 : 0;
+            DateTime sStart = allWalkDates.FirstOrDefault(), lStart = sStart, lEnd = sStart;
+            for (int i = 1; i < allWalkDates.Count; i++)
+            {
+                if ((allWalkDates[i] - allWalkDates[i - 1]).Days == 1) sLen++;
+                else { if (sLen > longStreak) { longStreak = sLen; lStart = sStart; lEnd = allWalkDates[i - 1]; } sLen = 1; sStart = allWalkDates[i]; }
+            }
+            if (sLen > longStreak) { longStreak = sLen; lStart = sStart; lEnd = allWalkDates.LastOrDefault(); }
+
+            vm.CurrentStreakDays  = curStreak;
+            vm.LongestStreakDays  = longStreak;
+            vm.LongestStreakStart = lStart;
+            vm.LongestStreakEnd   = lEnd;
+
             return View(vm);
         }
         catch (Exception ex)
