@@ -1,5 +1,6 @@
 using ActivitiesJournal.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace ActivitiesJournal.Controllers;
 
@@ -8,12 +9,15 @@ public class ActivitiesController : Controller
     private readonly IStravaService _stravaService;
     private readonly ILogger<ActivitiesController> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _memoryCache;
 
-    public ActivitiesController(IStravaService stravaService, ILogger<ActivitiesController> logger, IHttpClientFactory httpClientFactory)
+    public ActivitiesController(IStravaService stravaService, ILogger<ActivitiesController> logger,
+        IHttpClientFactory httpClientFactory, Microsoft.Extensions.Caching.Memory.IMemoryCache memoryCache)
     {
         _stravaService = stravaService;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+        _memoryCache = memoryCache;
     }
 
     public async Task<IActionResult> Index(int page = 1, int perPage = 30)
@@ -77,6 +81,105 @@ public class ActivitiesController : Controller
         {
             _logger.LogError(ex, "Error loading activity {ActivityId}", id);
             ViewBag.Error = "Failed to load activity details.";
+            return View();
+        }
+    }
+
+    public async Task<IActionResult> WeatherInsights(string? type = null, int limit = 100)
+    {
+        try
+        {
+            type ??= "All";
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var activities = FilterByActivityType(all, type)
+                .Where(a => a.StartLatlng?.Count >= 2 && a.StartDateLocal < DateTime.Now.AddDays(-2))
+                .OrderByDescending(a => a.StartDateLocal)
+                .Take(limit)
+                .ToList();
+
+            ViewBag.ActivityType = type;
+            ViewBag.ActivityTypeLabel = ActivityTypeLabel(type);
+
+            if (!activities.Any())
+            {
+                ViewBag.WeatherData = new List<(Models.StravaActivity, double temp, double wind, double precip, string desc)>();
+                return View();
+            }
+
+            // Fetch weather for each activity in parallel with cache
+            var sem = new SemaphoreSlim(5, 5);
+            var results = await Task.WhenAll(activities.Select(async a =>
+            {
+                await sem.WaitAsync();
+                try
+                {
+                    var cacheKey = $"weather_{a.StartDateLocal:yyyyMMdd}_{a.StartLatlng![0]:0.0}_{a.StartLatlng[1]:0.0}";
+                    if (_memoryCache.TryGetValue<(double t, double w, double p, int code)>(cacheKey, out var cached))
+                        return (a, cached.t, cached.w, cached.p, WmoCodeToDesc(cached.code), true);
+
+                    var lat = a.StartLatlng![0].ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture);
+                    var lon = a.StartLatlng[1].ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture);
+                    var date = a.StartDateLocal.ToString("yyyy-MM-dd");
+                    var url = $"v1/archive?latitude={lat}&longitude={lon}&start_date={date}&end_date={date}&hourly=temperature_2m,precipitation,windspeed_10m,weathercode&timezone=auto";
+
+                    var client = _httpClientFactory.CreateClient("weather");
+                    var resp = await client.GetAsync(url);
+                    if (!resp.IsSuccessStatusCode) return (a, 0d, 0d, 0d, "Unknown", false);
+
+                    var json = System.Text.Json.JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+                    var h = json.RootElement.GetProperty("hourly");
+                    int idx = Math.Min(a.StartDateLocal.Hour, 23);
+                    double temp  = h.GetProperty("temperature_2m").EnumerateArray().ElementAtOrDefault(idx).GetDouble();
+                    double wind  = h.GetProperty("windspeed_10m").EnumerateArray().ElementAtOrDefault(idx).GetDouble();
+                    double prec  = h.GetProperty("precipitation").EnumerateArray().ElementAtOrDefault(idx).GetDouble();
+                    int code     = h.GetProperty("weathercode").EnumerateArray().ElementAtOrDefault(idx).GetInt32();
+
+                    _memoryCache.Set<(double, double, double, int)>(cacheKey, (temp, wind, prec, code), TimeSpan.FromDays(30));
+                    return (a, temp, wind, prec, WmoCodeToDesc(code), true);
+                }
+                catch { return (a, 0d, 0d, 0d, "Unknown", false); }
+                finally { sem.Release(); }
+            }));
+
+            var data = results.Where(r => r.Item6).ToList();
+
+            // Group by temp range
+            var tempGroups = new[] { (-20, 0, "< 0°C"), (0, 5, "0–5°C"), (5, 10, "5–10°C"),
+                (10, 15, "10–15°C"), (15, 20, "15–20°C"), (20, 25, "20–25°C"), (25, 40, "> 25°C") };
+            // Tuple layout: (activity, temp, wind, prec, desc, ok) = (Item1..Item6)
+            var byTemp = tempGroups.Select(g =>
+            {
+                var bucket = data.Where(r => r.Item2 >= g.Item1 && r.Item2 < g.Item2).ToList();
+                bool isWalk = type == "Walk";
+                double avgVal = bucket.Any()
+                    ? (isWalk ? bucket.Average(r => r.Item1.Distance > 0 ? r.Item1.MovingTime / (r.Item1.Distance / 1000.0) / 60.0 : 0)
+                               : bucket.Average(r => r.Item1.AverageSpeed * 3.6))
+                    : 0;
+                return (Label: g.Item3, Count: bucket.Count, AvgValue: Math.Round(avgVal, 1));
+            }).Where(g => g.Count > 0).ToList();
+
+            // Dry vs wet (Item4 = precip)
+            var dryCount = data.Count(r => r.Item4 < 0.5);
+            var wetCount  = data.Count(r => r.Item4 >= 0.5);
+            double dryAvgSpeed = data.Where(r => r.Item4 < 0.5 && r.Item1.AverageSpeed > 0).DefaultIfEmpty().Average(r => r == default ? 0 : r.Item1.AverageSpeed * 3.6);
+            double wetAvgSpeed = data.Where(r => r.Item4 >= 0.5 && r.Item1.AverageSpeed > 0).DefaultIfEmpty().Average(r => r == default ? 0 : r.Item1.AverageSpeed * 3.6);
+
+            ViewBag.ActivityCount = activities.Count;
+            ViewBag.FetchedCount = data.Count;
+            ViewBag.ByTemp = byTemp;
+            ViewBag.DryCount = dryCount;
+            ViewBag.WetCount = wetCount;
+            ViewBag.DryAvgSpeed = Math.Round(dryAvgSpeed, 1);
+            ViewBag.WetAvgSpeed = Math.Round(wetAvgSpeed, 1);
+            ViewBag.IsWalk = type == "Walk";
+            ViewBag.Limit = limit;
+
+            return View();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading weather insights");
+            ViewBag.Error = "Failed to load weather insights.";
             return View();
         }
     }
