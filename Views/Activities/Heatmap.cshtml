@@ -1,24 +1,26 @@
 @model List<ActivitiesJournal.Models.StravaActivity>
+@using System.Text.Json
 
 @{
     ViewData["Title"] = "Heatmap";
-    var polylines = Model
-        .Where(a => a.Map?.SummaryPolyline != null)
-        .Select(a => a.Map!.SummaryPolyline!)
-        .ToList();
-    var encodedJson = JsonSerializer.Serialize(polylines);
     var availableYears = ViewBag.AvailableYears as List<int> ?? new List<int>();
     int? selectedYear = ViewBag.SelectedYear as int?;
+    string mode = ViewBag.Mode ?? "all";
+    string activityMeta = ViewBag.ActivityMeta ?? "[]";
+    int newCount = ViewBag.NewCount ?? 0;
+    int oldCount = ViewBag.OldCount ?? 0;
+    int total = newCount + oldCount;
 }
 
 <div class="container-fluid">
-    <div class="row mb-4 align-items-center">
+    <div class="row mb-3 align-items-center">
         <div class="col">
             <h1 class="page-title">Heatmap</h1>
-            <p class="text-muted">@polylines.Count routes — @(selectedYear?.ToString() ?? "all-time")</p>
+            <p class="text-muted">@total routes — @(selectedYear?.ToString() ?? "all-time")</p>
         </div>
         <div class="col-auto">
             <form method="get" class="d-flex gap-2 align-items-center">
+                <input type="hidden" name="mode" value="@mode" />
                 <label class="text-muted">Year:</label>
                 <select name="year" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()">
                     <option value="" selected="@(selectedYear == null)">All-time</option>
@@ -31,27 +33,62 @@
         </div>
     </div>
 
+    <!-- Mode selector -->
+    <div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
+        <div>
+            <a href="?year=@(selectedYear?.ToString() ?? "")&mode=all"
+               class="btn btn-sm @(mode == "all" ? "btn-success" : "btn-outline-secondary") me-1">
+                <i class="bi bi-map me-1"></i>All Routes
+            </a>
+            <a href="?year=@(selectedYear?.ToString() ?? "")&mode=new"
+               class="btn btn-sm @(mode == "new" ? "btn-warning" : "btn-outline-secondary") me-1">
+                <i class="bi bi-stars me-1"></i>New Roads (last 6 months)
+            </a>
+            <a href="?year=@(selectedYear?.ToString() ?? "")&mode=age"
+               class="btn btn-sm @(mode == "age" ? "btn-primary" : "btn-outline-secondary")">
+                <i class="bi bi-palette me-1"></i>Color by Age
+            </a>
+        </div>
+        @if (mode == "new")
+        {
+            <span class="text-muted small">
+                <span class="badge bg-warning text-dark">@newCount new</span>
+                <span class="badge bg-secondary ms-1">@oldCount older</span>
+            </span>
+        }
+    </div>
+
     @if (ViewBag.Error != null)
     {
-        <div class="alert alert-danger" role="alert">
-            <strong>Error:</strong> @ViewBag.Error
-        </div>
+        <div class="alert alert-danger" role="alert"><strong>Error:</strong> @ViewBag.Error</div>
     }
 
-    @if (polylines.Any())
+    @if (total > 0)
     {
         <div class="row">
             <div class="col-12">
-                <div id="heatmap-map" class="heatmap-map" data-polylines='@encodedJson'></div>
+                <div id="heatmap-map" class="heatmap-map"
+                     data-activity-meta='@Html.Raw(activityMeta)'
+                     data-mode="@mode"></div>
             </div>
         </div>
+
+        <!-- Legend for age mode -->
+        @if (mode == "age")
+        {
+            <div class="mt-2 d-flex align-items-center gap-2 flex-wrap small text-muted">
+                <span>Older</span>
+                <span style="width:16px;height:12px;background:#6c757d;border-radius:2px;display:inline-block"></span>
+                <span style="width:16px;height:12px;background:#17a2b8;border-radius:2px;display:inline-block"></span>
+                <span style="width:16px;height:12px;background:#28a745;border-radius:2px;display:inline-block"></span>
+                <span style="width:16px;height:12px;background:#ffc107;border-radius:2px;display:inline-block"></span>
+                <span style="width:16px;height:12px;background:#fd7e14;border-radius:2px;display:inline-block"></span>
+                <span>Newer</span>
+            </div>
+        }
     }
     else
     {
-        <div class="alert alert-info" role="alert">
-            <h4 class="alert-heading">No routes to show</h4>
-            <p>We couldn't find any activities with route data for this year.</p>
-        </div>
+        <div class="alert alert-info">No routes to show for this selection.</div>
     }
 </div>
-

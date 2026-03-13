@@ -97,24 +97,34 @@
       return;
     }
 
-    var data = el.getAttribute("data-polylines");
-    if (!data) {
-      return;
+    // Try new metadata format first, fall back to old polylines-only
+    var metaData = el.getAttribute("data-activity-meta");
+    var mode = el.getAttribute("data-mode") || "all";
+    var activities = [];
+
+    if (metaData) {
+      try { activities = JSON.parse(metaData); } catch { activities = []; }
+    } else {
+      // Legacy: plain polylines array
+      var plain = el.getAttribute("data-polylines");
+      if (plain) {
+        try { activities = JSON.parse(plain).map(function(p) { return { p: p, daysAgo: 365, isNew: false }; }); } catch { activities = []; }
+      }
     }
 
-    var polylines;
-    try {
-      polylines = JSON.parse(data);
-    } catch {
-      polylines = [];
-    }
+    if (!activities.length) return;
 
-    if (!Array.isArray(polylines) || polylines.length === 0) {
-      return;
+    // Age-based colour palette (oldest → newest)
+    var AGE_COLORS = ["#6c757d", "#17a2b8", "#28a745", "#ffc107", "#fd7e14"];
+    function ageColor(daysAgo) {
+      if (daysAgo < 30)  return AGE_COLORS[4];
+      if (daysAgo < 90)  return AGE_COLORS[3];
+      if (daysAgo < 180) return AGE_COLORS[2];
+      if (daysAgo < 365) return AGE_COLORS[1];
+      return AGE_COLORS[0];
     }
 
     var allLatLngs = [];
-
     var map = L.map(el);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -122,28 +132,36 @@
       attribution: "&copy; OpenStreetMap contributors",
     }).addTo(map);
 
-    polylines.forEach(function (encoded) {
+    activities.forEach(function (act) {
+      var encoded = act.p || act;
       var coords = decodePolyline(encoded, 5);
-      if (!coords.length) {
-        return;
-      }
+      if (!coords.length) return;
 
-      var latlngs = coords.map(function (c) {
-        return [c[0], c[1]];
-      });
-
+      var latlngs = coords.map(function (c) { return [c[0], c[1]]; });
       allLatLngs = allLatLngs.concat(latlngs);
 
-      L.polyline(latlngs, {
-        color: "#22c55e", // bright green for strong contrast
-        weight: 4,
-        opacity: 0.65,
-      }).addTo(map);
+      var color, opacity, weight;
+
+      if (mode === "new") {
+        // Highlight new routes (last 6 months) in orange, older in faint gray
+        if (act.isNew) {
+          color = "#fd7e14"; opacity = 0.9; weight = 3;
+        } else {
+          color = "#495057"; opacity = 0.25; weight = 2;
+        }
+      } else if (mode === "age") {
+        color = ageColor(act.daysAgo || 9999);
+        opacity = 0.75; weight = 3;
+      } else {
+        // Default "all" mode — uniform green
+        color = "#22c55e"; opacity = 0.65; weight = 3;
+      }
+
+      L.polyline(latlngs, { color: color, weight: weight, opacity: opacity }).addTo(map);
     });
 
     if (allLatLngs.length) {
-      var bounds = L.latLngBounds(allLatLngs);
-      map.fitBounds(bounds, { padding: [20, 20] });
+      map.fitBounds(L.latLngBounds(allLatLngs), { padding: [20, 20] });
     }
   }
 

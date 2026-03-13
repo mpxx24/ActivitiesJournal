@@ -1582,7 +1582,7 @@ public class ActivitiesController : Controller
         }
     }
 
-    public async Task<IActionResult> Heatmap(int? year = null)
+    public async Task<IActionResult> Heatmap(int? year = null, string? mode = null)
     {
         try
         {
@@ -1590,13 +1590,30 @@ public class ActivitiesController : Controller
 
             var availableYears = all.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
             ViewBag.AvailableYears = availableYears;
-            ViewBag.SelectedYear = year;  // null = all-time
+            ViewBag.SelectedYear = year;
+            ViewBag.Mode = mode ?? "all";  // "all" or "new"
 
             var withPolylines = (year == null
                 ? all
                 : all.Where(a => a.StartDateLocal.Year == year))
                 .Where(a => a.Map?.SummaryPolyline != null)
+                .OrderBy(a => a.StartDateLocal)
                 .ToList();
+
+            // Pass activity metadata: polyline, date, sport type for coloring
+            var today = DateTime.Today;
+            var activityMeta = withPolylines.Select(a => new
+            {
+                p = a.Map!.SummaryPolyline!,
+                y = a.StartDateLocal.Year,
+                daysAgo = (today - a.StartDateLocal.Date).Days,
+                isNew = (today - a.StartDateLocal.Date).Days <= 180,
+                sport = a.SportType,
+            }).ToList();
+
+            ViewBag.ActivityMeta = System.Text.Json.JsonSerializer.Serialize(activityMeta);
+            ViewBag.NewCount = activityMeta.Count(a => a.isNew);
+            ViewBag.OldCount = activityMeta.Count(a => !a.isNew);
 
             return View(withPolylines);
         }
