@@ -49,6 +49,10 @@ else
 
 // Register Strava service
 builder.Services.AddHttpClient<ActivitiesJournal.Services.IStravaService, ActivitiesJournal.Services.StravaService>();
+builder.Services.AddHttpClient("weather", c => {
+    c.BaseAddress = new Uri("https://archive-api.open-meteo.com/");
+    c.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddSingleton<ActivitiesJournal.Services.GoalsService>();
 
 var app = builder.Build();

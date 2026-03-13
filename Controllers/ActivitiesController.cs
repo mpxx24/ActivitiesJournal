@@ -7,11 +7,13 @@ public class ActivitiesController : Controller
 {
     private readonly IStravaService _stravaService;
     private readonly ILogger<ActivitiesController> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public ActivitiesController(IStravaService stravaService, ILogger<ActivitiesController> logger)
+    public ActivitiesController(IStravaService stravaService, ILogger<ActivitiesController> logger, IHttpClientFactory httpClientFactory)
     {
         _stravaService = stravaService;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<IActionResult> Index(int page = 1, int perPage = 30)
@@ -50,10 +52,23 @@ public class ActivitiesController : Controller
         try
         {
             var activity = await _stravaService.GetActivityByIdAsync(id);
-            
+
             if (activity == null)
             {
                 return NotFound();
+            }
+
+            // Fetch weather data if activity has coordinates and is old enough for archive API
+            if (activity.StartLatlng?.Count >= 2 && activity.StartDateLocal < DateTime.Now.AddDays(-2))
+            {
+                try
+                {
+                    await FetchWeatherAsync(activity);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Weather fetch failed for activity {Id}", id);
+                }
             }
 
             return View(activity);
@@ -65,6 +80,61 @@ public class ActivitiesController : Controller
             return View();
         }
     }
+
+    private async Task FetchWeatherAsync(Models.StravaActivity activity)
+    {
+        var lat = activity.StartLatlng![0].ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture);
+        var lon = activity.StartLatlng[1].ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture);
+        var date = activity.StartDateLocal.ToString("yyyy-MM-dd");
+        var url = $"v1/archive?latitude={lat}&longitude={lon}&start_date={date}&end_date={date}&hourly=temperature_2m,precipitation,windspeed_10m,weathercode&timezone=auto";
+
+        var client = _httpClientFactory.CreateClient("weather");
+        var resp = await client.GetAsync(url);
+        if (!resp.IsSuccessStatusCode) return;
+
+        var json = System.Text.Json.JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        var hourly = json.RootElement.GetProperty("hourly");
+        var times  = hourly.GetProperty("time").EnumerateArray().Select(e => e.GetString()).ToList();
+        var temps  = hourly.GetProperty("temperature_2m").EnumerateArray().Select(e => e.GetDouble()).ToList();
+        var precip = hourly.GetProperty("precipitation").EnumerateArray().Select(e => e.GetDouble()).ToList();
+        var wind   = hourly.GetProperty("windspeed_10m").EnumerateArray().Select(e => e.GetDouble()).ToList();
+        var codes  = hourly.GetProperty("weathercode").EnumerateArray().Select(e => e.GetInt32()).ToList();
+
+        // Find the hour closest to activity start
+        var actHour = activity.StartDateLocal.Hour;
+        int idx = Math.Min(actHour, times.Count - 1);
+
+        ViewBag.WeatherTemp    = temps.Count > idx ? Math.Round(temps[idx], 1) : (double?)null;
+        ViewBag.WeatherPrecip  = precip.Count > idx ? Math.Round(precip[idx], 1) : (double?)null;
+        ViewBag.WeatherWind    = wind.Count > idx ? Math.Round(wind[idx], 1) : (double?)null;
+        ViewBag.WeatherCode    = codes.Count > idx ? codes[idx] : (int?)null;
+        ViewBag.WeatherDesc    = WmoCodeToDesc(codes.Count > idx ? codes[idx] : 0);
+        ViewBag.WeatherIcon    = WmoCodeToIcon(codes.Count > idx ? codes[idx] : 0);
+    }
+
+    private static string WmoCodeToDesc(int code) => code switch
+    {
+        0 => "Clear sky", 1 or 2 or 3 => "Partly cloudy",
+        45 or 48 => "Foggy",
+        51 or 53 or 55 => "Drizzle",
+        61 or 63 or 65 => "Rain",
+        71 or 73 or 75 => "Snow",
+        80 or 81 or 82 => "Rain showers",
+        95 => "Thunderstorm",
+        _ => "Cloudy"
+    };
+
+    private static string WmoCodeToIcon(int code) => code switch
+    {
+        0 => "bi-sun-fill text-warning",
+        1 or 2 or 3 => "bi-cloud-sun text-warning",
+        45 or 48 => "bi-cloud-fog2 text-secondary",
+        51 or 53 or 55 => "bi-cloud-drizzle text-info",
+        61 or 63 or 65 or 80 or 81 or 82 => "bi-cloud-rain text-info",
+        71 or 73 or 75 => "bi-snow text-info",
+        95 => "bi-cloud-lightning-rain text-warning",
+        _ => "bi-clouds text-secondary"
+    };
 
     public async Task<IActionResult> Summary()
     {
