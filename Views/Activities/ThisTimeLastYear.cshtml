@@ -2,14 +2,14 @@
     ViewData["Title"] = "This Time Last Year";
     string type = ViewBag.ActivityType ?? "Ride";
     bool isWalk = ViewBag.IsWalk == true;
-    int thisYear = ViewBag.ThisYear;
-    int lastYear = ViewBag.LastYear;
-    string today = ViewBag.Today;
+    int thisYear = ViewBag.ThisYear ?? DateTime.Now.Year;
+    int lastYear = ViewBag.LastYear ?? DateTime.Now.Year - 1;
+    string today = ViewBag.Today ?? "";
 
-    double kmThis = ViewBag.KmThis, kmLast = ViewBag.KmLast;
-    int cntThis = ViewBag.CountThis, cntLast = ViewBag.CountLast;
-    double elevThis = ViewBag.ElevThis, elevLast = ViewBag.ElevLast;
-    double hoursThis = ViewBag.HoursThis, hoursLast = ViewBag.HoursLast;
+    double kmThis = ViewBag.KmThis ?? 0.0, kmLast = ViewBag.KmLast ?? 0.0;
+    int cntThis = ViewBag.CountThis ?? 0, cntLast = ViewBag.CountLast ?? 0;
+    double elevThis = ViewBag.ElevThis ?? 0.0, elevLast = ViewBag.ElevLast ?? 0.0;
+    double hoursThis = ViewBag.HoursThis ?? 0.0, hoursLast = ViewBag.HoursLast ?? 0.0;
 
     var weeklyThis = ViewBag.WeeklyThis as List<(string label, double km)> ?? new();
     var weeklyLast = ViewBag.WeeklyLast as List<(string label, double km)> ?? new();

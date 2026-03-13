@@ -2,17 +2,17 @@
     ViewData["Title"] = "Year vs Year";
     string type = ViewBag.ActivityType ?? "Ride";
     bool isWalk = ViewBag.IsWalk == true;
-    int yA = ViewBag.YearA;
-    int yB = ViewBag.YearB;
+    int yA = ViewBag.YearA ?? DateTime.Now.Year;
+    int yB = ViewBag.YearB ?? DateTime.Now.Year - 1;
     var availableYears = ViewBag.AvailableYears as List<int> ?? new List<int>();
 
-    double kmA = ViewBag.TotalKmA, kmB = ViewBag.TotalKmB;
-    int cntA = ViewBag.CountA, cntB = ViewBag.CountB;
-    double elevA = ViewBag.ElevA, elevB = ViewBag.ElevB;
-    double hoursA = ViewBag.HoursA, hoursB = ViewBag.HoursB;
-    double avgKmA = ViewBag.AvgKmA, avgKmB = ViewBag.AvgKmB;
-    double avgSpeedA = ViewBag.AvgSpeedA, avgSpeedB = ViewBag.AvgSpeedB;
-    double bestKmA = ViewBag.BestKmA, bestKmB = ViewBag.BestKmB;
+    double kmA = ViewBag.TotalKmA ?? 0.0, kmB = ViewBag.TotalKmB ?? 0.0;
+    int cntA = ViewBag.CountA ?? 0, cntB = ViewBag.CountB ?? 0;
+    double elevA = ViewBag.ElevA ?? 0.0, elevB = ViewBag.ElevB ?? 0.0;
+    double hoursA = ViewBag.HoursA ?? 0.0, hoursB = ViewBag.HoursB ?? 0.0;
+    double avgKmA = ViewBag.AvgKmA ?? 0.0, avgKmB = ViewBag.AvgKmB ?? 0.0;
+    double avgSpeedA = ViewBag.AvgSpeedA ?? 0.0, avgSpeedB = ViewBag.AvgSpeedB ?? 0.0;
+    double bestKmA = ViewBag.BestKmA ?? 0.0, bestKmB = ViewBag.BestKmB ?? 0.0;
 
     var monthsA = ViewBag.MonthsA as List<(int month, double km, int count)> ?? new();
     var monthsB = ViewBag.MonthsB as List<(int month, double km, int count)> ?? new();

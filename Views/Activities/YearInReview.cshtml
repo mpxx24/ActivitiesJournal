@@ -1,6 +1,6 @@
 @{
     ViewData["Title"] = $"{ViewBag.SelectedYear} Year in Review";
-    int yr = ViewBag.SelectedYear;
+    int yr = ViewBag.SelectedYear ?? DateTime.Now.Year;
     var availableYears = ViewBag.AvailableYears as List<int> ?? new();
     var monthlyKm = ViewBag.MonthlyKm as List<double> ?? new();
     string[] monthNames = { "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec" };
@@ -36,7 +36,7 @@
     <!-- Big numbers row -->
     <div class="row g-3 mb-4 text-center">
         <div class="col-6 col-md-3">
-            <div style="font-size:2.5rem;font-weight:700;color:#fdc525">@(((double)ViewBag.RideKm).ToString("0"))</div>
+            <div style="font-size:2.5rem;font-weight:700;color:#fdc525">@(((double)(ViewBag.RideKm ?? 0.0)).ToString("0"))</div>
             <div class="small text-muted">km ridden</div>
         </div>
         <div class="col-6 col-md-3">
@@ -48,7 +48,7 @@
             <div class="small text-muted">m climbed</div>
         </div>
         <div class="col-6 col-md-3">
-            <div style="font-size:2.5rem;font-weight:700;color:#38bdf8">@(((double)ViewBag.RideHours).ToString("0.0"))</div>
+            <div style="font-size:2.5rem;font-weight:700;color:#38bdf8">@(((double)(ViewBag.RideHours ?? 0.0)).ToString("0.0"))</div>
             <div class="small text-muted">hours in the saddle</div>
         </div>
     </div>
@@ -99,7 +99,7 @@
         </div>
     </div>
 
-    @if ((int)ViewBag.WalkCount > 0)
+    @if ((int)(ViewBag.WalkCount ?? 0) > 0)
     {
         <hr style="border-color:rgba(255,255,255,0.1)" />
         <div class="row g-3 mb-4 text-center">
@@ -107,7 +107,7 @@
                 <div class="small text-muted text-uppercase fw-semibold mb-2" style="letter-spacing:.08em">Also walked</div>
             </div>
             <div class="col-6">
-                <div class="fw-bold fs-4 text-success">@(((double)ViewBag.WalkKm).ToString("0")) km</div>
+                <div class="fw-bold fs-4 text-success">@(((double)(ViewBag.WalkKm ?? 0.0)).ToString("0")) km</div>
                 <div class="small text-muted">total walked</div>
             </div>
             <div class="col-6">

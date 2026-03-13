@@ -29,7 +29,7 @@
         <div class="card bg-dark border-secondary text-center">
             <div class="card-body py-3">
                 <div class="text-muted small mb-1"><i class="bi bi-bicycle me-1"></i>Ride km</div>
-                <div class="fw-bold fs-4 text-warning">@(((double)ViewBag.WeekRideKm).ToString("0.0"))</div>
+                <div class="fw-bold fs-4 text-warning">@(((double)(ViewBag.WeekRideKm ?? 0.0)).ToString("0.0"))</div>
                 <div class="text-muted small">@ViewBag.WeekRideCount ride@(ViewBag.WeekRideCount != 1 ? "s" : "")</div>
             </div>
         </div>
@@ -38,7 +38,7 @@
         <div class="card bg-dark border-secondary text-center">
             <div class="card-body py-3">
                 <div class="text-muted small mb-1"><i class="bi bi-person-walking me-1"></i>Walk km</div>
-                <div class="fw-bold fs-4 text-success">@(((double)ViewBag.WeekWalkKm).ToString("0.0"))</div>
+                <div class="fw-bold fs-4 text-success">@(((double)(ViewBag.WeekWalkKm ?? 0.0)).ToString("0.0"))</div>
                 <div class="text-muted small">@ViewBag.WeekWalkCount walk@(ViewBag.WeekWalkCount != 1 ? "s" : "")</div>
             </div>
         </div>
@@ -56,7 +56,7 @@
         <div class="card bg-dark border-secondary text-center">
             <div class="card-body py-3">
                 <div class="text-muted small mb-1"><i class="bi bi-calendar-check me-1"></i>YTD Rides</div>
-                <div class="fw-bold fs-4">@(((double)ViewBag.YtdRideKm).ToString("0"))<span class="fs-6"> km</span></div>
+                <div class="fw-bold fs-4">@(((double)(ViewBag.YtdRideKm ?? 0.0)).ToString("0"))<span class="fs-6"> km</span></div>
                 <div class="text-muted small">@ViewBag.YtdRideCount activities</div>
             </div>
         </div>
