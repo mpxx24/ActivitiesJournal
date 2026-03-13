@@ -171,6 +171,64 @@
     }
   }
 
+  function initNotifications() {
+    if (!("Notification" in window)) return;
+
+    // Show a notification button in the navbar if permission not yet decided
+    var btn = document.getElementById("notif-btn");
+    if (!btn) return;
+
+    function updateBtn() {
+      if (Notification.permission === "granted") {
+        btn.title = "Notifications enabled";
+        btn.querySelector("i").className = "bi bi-bell-fill text-warning";
+      } else if (Notification.permission === "denied") {
+        btn.title = "Notifications blocked — enable in browser settings";
+        btn.querySelector("i").className = "bi bi-bell-slash text-muted";
+      } else {
+        btn.title = "Enable activity reminders";
+        btn.querySelector("i").className = "bi bi-bell text-muted";
+      }
+    }
+    updateBtn();
+
+    btn.addEventListener("click", function () {
+      if (Notification.permission === "granted") {
+        // Send a test notification
+        new Notification("Activities Journal", {
+          body: "Notifications are active! You'll be reminded to keep your streak.",
+          icon: "/favicon.ico"
+        });
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(function (perm) {
+          updateBtn();
+          if (perm === "granted") {
+            new Notification("Activities Journal", {
+              body: "Great! You'll receive streak and goal reminders.",
+              icon: "/favicon.ico"
+            });
+          }
+        });
+      }
+    });
+
+    // If permission already granted, check streak data from page meta
+    if (Notification.permission === "granted") {
+      var streakEl = document.querySelector("[data-streak]");
+      var streak = streakEl ? parseInt(streakEl.getAttribute("data-streak"), 10) : -1;
+      // Remind after 23h without activity — use sessionStorage to avoid spamming
+      var lastNotif = sessionStorage.getItem("lastStreakNotif");
+      var now = Date.now();
+      if (streak >= 1 && (!lastNotif || now - parseInt(lastNotif, 10) > 23 * 3600 * 1000)) {
+        sessionStorage.setItem("lastStreakNotif", now.toString());
+        new Notification("Keep your streak alive! 🔥", {
+          body: "You have a " + streak + "-day streak. Don't forget to ride or walk today!",
+          icon: "/favicon.ico"
+        });
+      }
+    }
+  }
+
   function initThemeToggle() {
     var btn = document.getElementById("theme-toggle");
     var icon = document.getElementById("theme-icon");
@@ -196,11 +254,13 @@
       initActivityMaps();
       initHeatmap();
       initThemeToggle();
+      initNotifications();
     });
   } else {
     initActivityMaps();
     initHeatmap();
     initThemeToggle();
+    initNotifications();
   }
 })();
 
