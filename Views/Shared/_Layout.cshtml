@@ -6,6 +6,7 @@
         || (currentController == "Activities" && currentAction is
             "PersonalRecords" or "MonthComparison" or "DayInHistory" or
             "Calendar" or "Badges" or "Analysis" or "Fitness" or "Segments");
+    bool isWalkingSection = currentController == "Activities" && currentAction == "WalkAnalytics";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -50,6 +51,11 @@
                         <li class="nav-item">
                             <a class="nav-link" asp-area="" asp-controller="Activities" asp-action="Heatmap">
                                 <i class="bi bi-map me-1"></i> Heatmap
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(isWalkingSection ? "active" : "")" asp-area="" asp-controller="Activities" asp-action="WalkAnalytics">
+                                <i class="bi bi-person-walking me-1"></i> Walking
                             </a>
                         </li>
                         <li class="nav-item dropdown">

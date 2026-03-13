@@ -761,6 +761,81 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> WalkAnalytics(int? year = null)
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var walks = all.Where(a => a.SportType is "Walk" or "Hike" or "VirtualWalk").ToList();
+
+            var availableYears = walks.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
+            int selectedYear = year ?? DateTime.Now.Year;
+            var yearWalks = walks.Where(a => a.StartDateLocal.Year == selectedYear).OrderBy(a => a.StartDateLocal).ToList();
+
+            if (!yearWalks.Any())
+            {
+                return View(new Models.WalkAnalyticsViewModel
+                {
+                    Year = selectedYear,
+                    AvailableYears = availableYears,
+                });
+            }
+
+            double totalDistKm = yearWalks.Sum(a => a.Distance) / 1000.0;
+            double totalElevM  = yearWalks.Sum(a => (double)a.TotalElevationGain);
+            int    totalSec    = yearWalks.Sum(a => a.MovingTime);
+
+            // Pace: seconds per km (lower = faster)
+            double avgPaceSecPerKm = totalDistKm > 0 ? totalSec / totalDistKm : 0;
+
+            var walksWithDist = yearWalks.Where(a => a.Distance >= 3000).ToList();
+            var fastestPace = walksWithDist.Any()
+                ? walksWithDist.MinBy(a => a.MovingTime / (a.Distance / 1000.0))
+                : null;
+
+            var distByMonth = new double[13];
+            foreach (var a in yearWalks)
+                distByMonth[a.StartDateLocal.Month] += a.Distance / 1000.0;
+
+            var byHour = new int[24];
+            foreach (var a in yearWalks)
+                byHour[a.StartDateLocal.Hour]++;
+
+            var vm = new Models.WalkAnalyticsViewModel
+            {
+                Year             = selectedYear,
+                AvailableYears   = availableYears,
+                TotalDistanceKm  = Math.Round(totalDistKm, 1),
+                TotalMovingTime  = TimeSpan.FromSeconds(totalSec),
+                TotalElevationM  = Math.Round(totalElevM, 0),
+                TotalWalks       = yearWalks.Count,
+                AvgDistanceKm    = Math.Round(totalDistKm / yearWalks.Count, 1),
+                AvgPaceSecPerKm  = Math.Round(avgPaceSecPerKm, 0),
+                AvgElevationM    = Math.Round(totalElevM / yearWalks.Count, 0),
+                LongestWalk      = yearWalks.MaxBy(a => a.Distance),
+                FastestPaceWalk  = fastestPace,
+                MostElevationWalk = yearWalks.MaxBy(a => a.TotalElevationGain),
+                LongestTimeWalk  = yearWalks.MaxBy(a => a.MovingTime),
+                ShortWalks       = yearWalks.Count(a => a.Distance < 5000),
+                MediumWalks      = yearWalks.Count(a => a.Distance >= 5000 && a.Distance <= 15000),
+                LongWalks        = yearWalks.Count(a => a.Distance > 15000),
+                WalksByHour      = byHour,
+                DistanceByMonth  = distByMonth,
+                WalkCount        = yearWalks.Count(a => a.SportType is "Walk" or "VirtualWalk"),
+                HikeCount        = yearWalks.Count(a => a.SportType == "Hike"),
+                Top5ByDistance   = yearWalks.OrderByDescending(a => a.Distance).Take(5).ToList(),
+            };
+
+            return View(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading walk analytics");
+            ViewBag.Error = "Failed to load walk analytics.";
+            return View(new Models.WalkAnalyticsViewModel { Year = DateTime.Now.Year });
+        }
+    }
+
     public async Task<IActionResult> Heatmap(int? year = null)
     {
         try
