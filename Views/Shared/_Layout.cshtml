@@ -1,6 +1,12 @@
 @inject IOptions<ActivitiesJournal.Models.StravaConfig> StravaOptions
+@inject ActivitiesJournal.Services.IStravaService StravaServiceLayout
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+    var cacheTs = StravaServiceLayout.GetCacheTimestamp();
+    string cacheAge = cacheTs == null ? "not loaded"
+        : (DateTime.Now - cacheTs.Value).TotalMinutes < 1 ? "just now"
+        : (DateTime.Now - cacheTs.Value).TotalMinutes < 60 ? $"{(int)(DateTime.Now - cacheTs.Value).TotalMinutes}m ago"
+        : $"{(int)(DateTime.Now - cacheTs.Value).TotalHours}h ago";
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
     bool isCyclingSection = currentController == "Goals"
         || (currentController == "Activities" && currentAction is
@@ -176,7 +182,7 @@
                                 <i class="bi bi-moon-stars" id="theme-icon"></i>
                             </button>
                         </li>
-                        <li class="nav-item">
+                        <li class="nav-item d-flex align-items-center">
                             <form method="post" asp-controller="Strava" asp-action="ClearCache"
                                   asp-route-returnUrl="@Context.Request.Path">
                                 @Html.AntiForgeryToken()
@@ -185,6 +191,7 @@
                                     <i class="bi bi-arrow-clockwise me-1"></i>Reload
                                 </button>
                             </form>
+                            <span class="text-muted small ms-1" style="font-size:0.7rem;opacity:.6" title="Data last fetched from Strava">@cacheAge</span>
                         </li>
                         @if (string.IsNullOrEmpty(StravaOptions.Value.AccessToken))
                         {

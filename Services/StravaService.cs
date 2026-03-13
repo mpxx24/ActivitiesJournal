@@ -16,6 +16,7 @@ public class StravaService : IStravaService
     private const string AllActivitiesCacheKey = "strava_all_activities";
     private static string PageCacheKey(int page, int perPage) => $"strava_page_{page}_{perPage}";
     private static string ActivityCacheKey(long id) => $"strava_activity_{id}";
+    private static DateTime? _cacheTimestamp;
 
     private static readonly TimeSpan ListCacheDuration = TimeSpan.FromHours(1);
     private static readonly TimeSpan DetailCacheDuration = TimeSpan.FromHours(1);
@@ -63,8 +64,11 @@ public class StravaService : IStravaService
         // Remove paginated list keys (pages 1–20 cover any realistic dataset)
         for (int p = 1; p <= 20; p++)
             _cache.Remove(PageCacheKey(p, 200));
+        _cacheTimestamp = null;
         _logger.LogInformation("Strava cache invalidated");
     }
+
+    public DateTime? GetCacheTimestamp() => _cacheTimestamp;
 
     public async Task<List<StravaActivity>> GetActivitiesAsync(int page = 1, int perPage = 30)
     {
@@ -154,6 +158,7 @@ public class StravaService : IStravaService
             page++;
         }
         _cache.Set(AllActivitiesCacheKey, all, ListCacheDuration);
+        _cacheTimestamp = DateTime.Now;
         return all;
     }
 

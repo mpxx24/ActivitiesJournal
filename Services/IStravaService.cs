@@ -11,5 +11,6 @@ public interface IStravaService
     Task ExchangeCodeForTokenAsync(string code);
     string GetAuthorizationUrl();
     void InvalidateCache();
+    DateTime? GetCacheTimestamp();
     Task<string?> GetSegmentPolylineAsync(long segmentId);
 }
