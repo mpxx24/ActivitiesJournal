@@ -1,0 +1,120 @@
+@model ActivitiesJournal.Models.TimelineViewModel
+@{
+    ViewData["Title"] = "Activity Timeline";
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    string WeekLabels   = System.Text.Json.JsonSerializer.Serialize(Model.Weeks.Select(w => w.Label).ToArray());
+    string WeekDist     = "[" + string.Join(",", Model.Weeks.Select(w => w.DistanceKm.ToString("0.0", inv))) + "]";
+    string WeekTime     = "[" + string.Join(",", Model.Weeks.Select(w => w.TimeHours.ToString("0.1", inv))) + "]";
+    string WeekCount    = "[" + string.Join(",", Model.Weeks.Select(w => w.Count)) + "]";
+
+    string MonthLabels  = System.Text.Json.JsonSerializer.Serialize(Model.Months.Select(m => m.Label).ToArray());
+    string MonthDist    = "[" + string.Join(",", Model.Months.Select(m => m.DistanceKm.ToString("0.0", inv))) + "]";
+    string MonthTime    = "[" + string.Join(",", Model.Months.Select(m => m.TimeHours.ToString("0.1", inv))) + "]";
+    string MonthCount   = "[" + string.Join(",", Model.Months.Select(m => m.Count)) + "]";
+
+    string color = Model.ActivityType == "Walk" ? "#198754" : Model.ActivityType == "All" ? "#0d6efd" : "#ffc107";
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-bar-chart-line me-2 text-warning"></i>Activity Timeline</h2>
+</div>
+
+<div class="mb-3">
+    <a href="?type=Ride" class="btn btn-sm @(Model.ActivityType == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1"><i class="bi bi-bicycle me-1"></i>Rides</a>
+    <a href="?type=Walk" class="btn btn-sm @(Model.ActivityType == "Walk" ? "btn-success" : "btn-outline-secondary") me-1"><i class="bi bi-person-walking me-1"></i>Walks</a>
+    <a href="?type=All"  class="btn btn-sm @(Model.ActivityType == "All"  ? "btn-primary"  : "btn-outline-secondary")"><i class="bi bi-grid me-1"></i>All</a>
+</div>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger">@ViewBag.Error</div>
+}
+
+<!-- Weekly chart -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-calendar-week me-2"></i>Last 26 Weeks &mdash; @Model.ActivityTypeLabel</span>
+        <div class="btn-group btn-group-sm" role="group" id="weekToggle">
+            <button type="button" class="btn btn-sm btn-warning active" onclick="showWeek('dist')">Distance</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showWeek('time')">Time</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showWeek('count')">Count</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <canvas id="weekChart" height="100"></canvas>
+    </div>
+</div>
+
+<!-- Monthly chart -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-calendar3 me-2"></i>Last 18 Months &mdash; @Model.ActivityTypeLabel</span>
+        <div class="btn-group btn-group-sm" role="group" id="monthToggle">
+            <button type="button" class="btn btn-sm btn-warning active" onclick="showMonth('dist')">Distance</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showMonth('time')">Time</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showMonth('count')">Count</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <canvas id="monthChart" height="100"></canvas>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const BAR_COLOR = '@color';
+
+const weekLabels = @Html.Raw(WeekLabels);
+const weekDist   = @Html.Raw(WeekDist);
+const weekTime   = @Html.Raw(WeekTime);
+const weekCount  = @Html.Raw(WeekCount);
+
+const monthLabels = @Html.Raw(MonthLabels);
+const monthDist   = @Html.Raw(MonthDist);
+const monthTime   = @Html.Raw(MonthTime);
+const monthCount  = @Html.Raw(MonthCount);
+
+function makeChart(id, labels, data, yLabel) {
+    return new Chart(document.getElementById(id), {
+        type: 'bar',
+        data: { labels, datasets: [{ data, backgroundColor: BAR_COLOR, borderRadius: 4 }] },
+        options: {
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, title: { display: true, text: yLabel },
+                ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                x: { ticks: { color: '#adb5bd', maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.05)' } } }
+        }
+    });
+}
+
+let weekChart  = makeChart('weekChart',  weekLabels,  weekDist,  'km');
+let monthChart = makeChart('monthChart', monthLabels, monthDist, 'km');
+
+function updateToggleBtns(toggleId, activeBtn) {
+    document.querySelectorAll('#' + toggleId + ' button').forEach(b => {
+        b.classList.remove('btn-warning', 'btn-success', 'btn-primary', 'active');
+        b.classList.add('btn-outline-secondary');
+    });
+    activeBtn.classList.remove('btn-outline-secondary');
+    activeBtn.classList.add('btn-warning', 'active');
+}
+
+function showWeek(metric) {
+    const data = metric === 'dist' ? weekDist : metric === 'time' ? weekTime : weekCount;
+    const label = metric === 'dist' ? 'km' : metric === 'time' ? 'hours' : 'activities';
+    weekChart.destroy();
+    weekChart = makeChart('weekChart', weekLabels, data, label);
+    updateToggleBtns('weekToggle', event.target);
+}
+
+function showMonth(metric) {
+    const data = metric === 'dist' ? monthDist : metric === 'time' ? monthTime : monthCount;
+    const label = metric === 'dist' ? 'km' : metric === 'time' ? 'hours' : 'activities';
+    monthChart.destroy();
+    monthChart = makeChart('monthChart', monthLabels, data, label);
+    updateToggleBtns('monthToggle', event.target);
+}
+</script>
+}

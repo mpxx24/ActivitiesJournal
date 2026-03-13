@@ -874,6 +874,77 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> Timeline(string? type = null)
+    {
+        try
+        {
+            type ??= "Ride";
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var activities = FilterByActivityType(all, type);
+
+            var today = DateTime.Today;
+
+            // Weekly: last 26 weeks (Mon–Sun buckets)
+            var weekStart = today.AddDays(-(int)today.DayOfWeek - 7 * 25);  // Monday of 26 weeks ago
+            if (weekStart.DayOfWeek != DayOfWeek.Monday)
+                weekStart = weekStart.AddDays(-(int)weekStart.DayOfWeek + 1);
+
+            var byDate = activities.ToLookup(a => a.StartDateLocal.Date);
+            var weeks = new List<Models.TimelineWeekPoint>();
+            for (int w = 0; w < 26; w++)
+            {
+                var ws = weekStart.AddDays(w * 7);
+                var we = ws.AddDays(6);
+                double dist = 0, hrs = 0; int cnt = 0;
+                for (var d = ws; d <= we && d <= today; d = d.AddDays(1))
+                {
+                    foreach (var a in byDate[d]) { dist += a.Distance / 1000.0; hrs += a.MovingTime / 3600.0; cnt++; }
+                }
+                weeks.Add(new Models.TimelineWeekPoint
+                {
+                    WeekStart = ws,
+                    Label = ws.ToString("MMM d"),
+                    DistanceKm = Math.Round(dist, 1),
+                    TimeHours = Math.Round(hrs, 1),
+                    Count = cnt,
+                });
+            }
+
+            // Monthly: last 18 months
+            var months = new List<Models.TimelineMonthPoint>();
+            for (int m = 17; m >= 0; m--)
+            {
+                var monthDate = today.AddMonths(-m);
+                var bucket = activities.Where(a => a.StartDateLocal.Year == monthDate.Year && a.StartDateLocal.Month == monthDate.Month).ToList();
+                months.Add(new Models.TimelineMonthPoint
+                {
+                    Year = monthDate.Year,
+                    Month = monthDate.Month,
+                    Label = monthDate.ToString("MMM yy"),
+                    DistanceKm = Math.Round(bucket.Sum(a => a.Distance) / 1000.0, 1),
+                    TimeHours = Math.Round(bucket.Sum(a => a.MovingTime) / 3600.0, 1),
+                    Count = bucket.Count,
+                });
+            }
+
+            var vm = new Models.TimelineViewModel
+            {
+                ActivityType = type,
+                ActivityTypeLabel = ActivityTypeLabel(type),
+                Weeks = weeks,
+                Months = months,
+            };
+
+            return View(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading timeline");
+            ViewBag.Error = "Failed to load timeline data.";
+            return View(new Models.TimelineViewModel());
+        }
+    }
+
     public async Task<IActionResult> WalkAnalytics(int? year = null)
     {
         try
