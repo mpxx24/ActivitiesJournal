@@ -1,14 +1,19 @@
 @model ActivitiesJournal.Models.BadgesViewModel
 @{
     ViewData["Title"] = "Badges";
+    string actType = ViewBag.ActivityType ?? "Ride";
 }
 
 <div class="container-fluid">
-    <div class="row mb-4">
+    <div class="row mb-2">
         <div class="col">
             <h1 class="page-title">Badges</h1>
-            <p class="text-muted">@Model.EarnedCount / @Model.Badges.Count earned</p>
+            <p class="text-muted">@Model.EarnedCount / @Model.Badges.Count earned &mdash; @(ViewBag.ActivityTypeLabel ?? "Rides")</p>
         </div>
+    </div>
+    <div class="mb-4">
+        <a href="?type=Ride" class="btn btn-sm @(actType == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1"><i class="bi bi-bicycle me-1"></i>Cycling Badges</a>
+        <a href="?type=Walk" class="btn btn-sm @(actType == "Walk" ? "btn-success" : "btn-outline-secondary")"><i class="bi bi-person-walking me-1"></i>Walking Badges</a>
     </div>
 
     @if (ViewBag.Error != null)

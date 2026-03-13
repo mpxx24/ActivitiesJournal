@@ -109,11 +109,80 @@ public class ActivitiesController : Controller
         }
     }
 
-    public async Task<IActionResult> Badges()
+    public async Task<IActionResult> Badges(string? type = null)
     {
+        type ??= "Ride";
+        ViewBag.ActivityType = type;
+        ViewBag.ActivityTypeLabel = ActivityTypeLabel(type);
+
         try
         {
             var all = await _stravaService.GetAllActivitiesAsync();
+
+            if (type == "Walk")
+            {
+                var walks = all.Where(a => a.SportType is "Walk" or "Hike" or "VirtualWalk")
+                               .OrderBy(a => a.StartDateLocal).ToList();
+
+                double wDistKm = walks.Sum(a => a.Distance) / 1000.0;
+                double wElevM  = walks.Sum(a => (double)a.TotalElevationGain);
+                int totalWalks = walks.Count;
+                var walkDates = walks.Select(a => a.StartDateLocal.Date).Distinct().OrderBy(d => d).ToList();
+                int wLongestStreak = ComputeLongestStreak(walkDates);
+
+                var wHalfMarathons = walks.Where(a => a.Distance >= 21_000).ToList();
+                var wMarathons     = walks.Where(a => a.Distance >= 42_000).ToList();
+                var wBigClimbs     = walks.Where(a => a.TotalElevationGain >= 2_000).ToList();
+                var wEarlyBird     = walks.Where(a => a.StartDateLocal.Hour < 7).ToList();
+                var wEveningWalks  = walks.Where(a => a.StartDateLocal.Hour >= 20).ToList();
+
+                var walkBadges = new List<Models.Badge>
+                {
+                    MilestoneBadge("First Walk",   "Complete your first walk or hike",    "bi-person-walking",      1,   totalWalks, walks.FirstOrDefault()),
+                    MilestoneBadge("10 Walks",     "Complete 10 walks",                   "bi-person-walking",      10,  totalWalks, walks.Count >= 10  ? walks[9]  : null),
+                    MilestoneBadge("50 Walks",     "Complete 50 walks",                   "bi-person-walking-fill", 50,  totalWalks, walks.Count >= 50  ? walks[49] : null),
+                    MilestoneBadge("100 Walks",    "Complete 100 walks",                  "bi-person-walking-fill", 100, totalWalks, walks.Count >= 100 ? walks[99] : null),
+                    MilestoneBadge("500 Walks",    "Complete 500 walks",                  "bi-person-walking-fill", 500, totalWalks, walks.Count >= 500 ? walks[499]: null),
+
+                    DistanceBadge("Walker 100 km",   "Walk 100 km total",   "bi-signpost",        100,   wDistKm, walks),
+                    DistanceBadge("Walker 1,000 km", "Walk 1,000 km total", "bi-signpost-2",      1_000, wDistKm, walks),
+                    DistanceBadge("Walker 5,000 km", "Walk 5,000 km total", "bi-signpost-2-fill", 5_000, wDistKm, walks),
+
+                    ElevationBadge("Hillwalker (500 m)", "Gain 500+ m in one walk",     "bi-triangle",      500,   wElevM, walks),
+                    ElevationBadge("Everest Walker",     "Climb 8,849 m total walking", "bi-triangle-fill", 8_849, wElevM, walks),
+
+                    new Models.Badge { Name = "Half-Marathon Walker", Description = "Walk 21+ km in a single outing", Icon = "bi-person-running",
+                        Earned = wHalfMarathons.Any(), EarningActivity = wHalfMarathons.FirstOrDefault(), EarnedOn = wHalfMarathons.FirstOrDefault()?.StartDateLocal,
+                        Progress = wHalfMarathons.Any() ? null : $"Longest: {(walks.Any() ? (walks.Max(a => a.Distance)/1000.0).ToString("0.0") : "0")} km" },
+
+                    new Models.Badge { Name = "Marathon Walker", Description = "Walk 42+ km in a single outing", Icon = "bi-trophy",
+                        Earned = wMarathons.Any(), EarningActivity = wMarathons.FirstOrDefault(), EarnedOn = wMarathons.FirstOrDefault()?.StartDateLocal,
+                        Progress = wMarathons.Any() ? null : $"Longest: {(walks.Any() ? (walks.Max(a => a.Distance)/1000.0).ToString("0.0") : "0")} km" },
+
+                    new Models.Badge { Name = "Mountain Goat (Walking)", Description = "Gain 2,000+ m elevation in one walk", Icon = "bi-sunrise",
+                        Earned = wBigClimbs.Any(), EarningActivity = wBigClimbs.FirstOrDefault(), EarnedOn = wBigClimbs.FirstOrDefault()?.StartDateLocal,
+                        Progress = wBigClimbs.Any() ? null : $"Best: {(walks.Any() ? walks.Max(a => a.TotalElevationGain).ToString("0") : "0")} m" },
+
+                    new Models.Badge { Name = "Habit Walker", Description = "Walk 7 days in a row", Icon = "bi-fire",
+                        Earned = wLongestStreak >= 7, Progress = wLongestStreak >= 7 ? null : $"Best streak: {wLongestStreak} day(s)" },
+
+                    new Models.Badge { Name = "Habit Walker Pro", Description = "Walk 30 days in a row", Icon = "bi-stars",
+                        Earned = wLongestStreak >= 30, Progress = wLongestStreak >= 30 ? null : $"Best streak: {wLongestStreak} day(s)" },
+
+                    new Models.Badge { Name = "Early Bird Walker", Description = "Start a walk before 7 AM", Icon = "bi-sunrise-fill",
+                        Earned = wEarlyBird.Any(), EarningActivity = wEarlyBird.FirstOrDefault(), EarnedOn = wEarlyBird.FirstOrDefault()?.StartDateLocal },
+
+                    new Models.Badge { Name = "Evening Walker", Description = "Start a walk at or after 8 PM", Icon = "bi-moon-fill",
+                        Earned = wEveningWalks.Any(), EarningActivity = wEveningWalks.FirstOrDefault(), EarnedOn = wEveningWalks.FirstOrDefault()?.StartDateLocal },
+
+                    new Models.Badge { Name = "Year-Round Walker", Description = "Walk in all 12 calendar months in a year", Icon = "bi-calendar-check",
+                        Earned = walks.GroupBy(a => a.StartDateLocal.Year).Any(g => g.Select(a => a.StartDateLocal.Month).Distinct().Count() == 12),
+                        Progress = $"Best: {(walks.Any() ? walks.GroupBy(a => a.StartDateLocal.Year).Max(g => g.Select(a => a.StartDateLocal.Month).Distinct().Count()) : 0)} months" },
+                };
+
+                return View(new Models.BadgesViewModel { Badges = walkBadges });
+            }
+
             var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide")
                            .OrderBy(a => a.StartDateLocal).ToList();
 
