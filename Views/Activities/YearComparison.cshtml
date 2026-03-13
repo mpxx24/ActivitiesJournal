@@ -1,0 +1,185 @@
+@{
+    ViewData["Title"] = "Year vs Year";
+    string type = ViewBag.ActivityType ?? "Ride";
+    bool isWalk = ViewBag.IsWalk == true;
+    int yA = ViewBag.YearA;
+    int yB = ViewBag.YearB;
+    var availableYears = ViewBag.AvailableYears as List<int> ?? new List<int>();
+
+    double kmA = ViewBag.TotalKmA, kmB = ViewBag.TotalKmB;
+    int cntA = ViewBag.CountA, cntB = ViewBag.CountB;
+    double elevA = ViewBag.ElevA, elevB = ViewBag.ElevB;
+    double hoursA = ViewBag.HoursA, hoursB = ViewBag.HoursB;
+    double avgKmA = ViewBag.AvgKmA, avgKmB = ViewBag.AvgKmB;
+    double avgSpeedA = ViewBag.AvgSpeedA, avgSpeedB = ViewBag.AvgSpeedB;
+    double bestKmA = ViewBag.BestKmA, bestKmB = ViewBag.BestKmB;
+
+    var monthsA = ViewBag.MonthsA as List<(int month, double km, int count)> ?? new();
+    var monthsB = ViewBag.MonthsB as List<(int month, double km, int count)> ?? new();
+
+    string WinClass(double a, double b, bool lowerBetter = false) {
+        if (a == b) return "text-muted";
+        bool aWins = lowerBetter ? a < b : a > b;
+        return aWins ? "text-success" : "text-danger";
+    }
+    string Arrow(double a, double b, bool lowerBetter = false) {
+        if (a == b) return "–";
+        bool aWins = lowerBetter ? a < b : a > b;
+        double pct = b != 0 ? Math.Abs((a - b) / b * 100) : 0;
+        string arrow = aWins ? "▲" : "▼";
+        return $"{arrow} {pct:0}%";
+    }
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3 flex-wrap gap-2">
+    <h2><i class="bi bi-bar-chart-line me-2 text-warning"></i>Year vs Year</h2>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="?yearA=@yA&yearB=@yB&type=Ride" class="btn btn-sm @(type == "Ride" ? "btn-warning" : "btn-outline-secondary")"><i class="bi bi-bicycle me-1"></i>Rides</a>
+        <a href="?yearA=@yA&yearB=@yB&type=Walk" class="btn btn-sm @(type == "Walk" ? "btn-success" : "btn-outline-secondary")"><i class="bi bi-person-walking me-1"></i>Walks</a>
+        <a href="?yearA=@yA&yearB=@yB&type=All"  class="btn btn-sm @(type == "All"  ? "btn-primary"  : "btn-outline-secondary")"><i class="bi bi-grid me-1"></i>All</a>
+    </div>
+</div>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger">@ViewBag.Error</div>
+}
+
+<!-- Year pickers -->
+<form method="get" class="row g-2 align-items-end mb-4">
+    <input type="hidden" name="type" value="@type" />
+    <div class="col-auto">
+        <label class="text-muted small">Year A</label>
+        <select name="yearA" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()">
+            @foreach (var y in availableYears)
+            {
+                <option value="@y" selected="@(y == yA)">@y</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto d-flex align-items-end">
+        <span class="text-muted pb-1">vs</span>
+    </div>
+    <div class="col-auto">
+        <label class="text-muted small">Year B</label>
+        <select name="yearB" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()">
+            @foreach (var y in availableYears)
+            {
+                <option value="@y" selected="@(y == yB)">@y</option>
+            }
+        </select>
+    </div>
+</form>
+
+<!-- Head-to-head stats table -->
+<div class="card bg-dark border-secondary mb-4">
+    <div class="card-body p-0">
+        <table class="table table-dark table-hover mb-0">
+            <thead>
+                <tr>
+                    <th class="text-warning text-center fs-5">@yA</th>
+                    <th class="text-center text-muted">Metric</th>
+                    <th class="text-info text-center fs-5">@yB</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-center fw-bold @WinClass(kmA, kmB)">@kmA.ToString("0.0") km <span class="small">@Arrow(kmA, kmB)</span></td>
+                    <td class="text-center text-muted small">Total Distance</td>
+                    <td class="text-center fw-bold @WinClass(kmB, kmA)">@kmB.ToString("0.0") km</td>
+                </tr>
+                <tr>
+                    <td class="text-center fw-bold @WinClass(cntA, cntB)">@cntA <span class="small">@Arrow(cntA, cntB)</span></td>
+                    <td class="text-center text-muted small">Activities</td>
+                    <td class="text-center fw-bold @WinClass(cntB, cntA)">@cntB</td>
+                </tr>
+                <tr>
+                    <td class="text-center fw-bold @WinClass(hoursA, hoursB)">@hoursA.ToString("0.0") h <span class="small">@Arrow(hoursA, hoursB)</span></td>
+                    <td class="text-center text-muted small">Moving Time</td>
+                    <td class="text-center fw-bold @WinClass(hoursB, hoursA)">@hoursB.ToString("0.0") h</td>
+                </tr>
+                <tr>
+                    <td class="text-center fw-bold @WinClass(elevA, elevB)">@((int)elevA) m <span class="small">@Arrow(elevA, elevB)</span></td>
+                    <td class="text-center text-muted small">Elevation Gain</td>
+                    <td class="text-center fw-bold @WinClass(elevB, elevA)">@((int)elevB) m</td>
+                </tr>
+                <tr>
+                    <td class="text-center fw-bold @WinClass(avgKmA, avgKmB)">@avgKmA.ToString("0.0") km <span class="small">@Arrow(avgKmA, avgKmB)</span></td>
+                    <td class="text-center text-muted small">Avg per Activity</td>
+                    <td class="text-center fw-bold @WinClass(avgKmB, avgKmA)">@avgKmB.ToString("0.0") km</td>
+                </tr>
+                @if (!isWalk)
+                {
+                    <tr>
+                        <td class="text-center fw-bold @WinClass(avgSpeedA, avgSpeedB)">@avgSpeedA.ToString("0.0") km/h <span class="small">@Arrow(avgSpeedA, avgSpeedB)</span></td>
+                        <td class="text-center text-muted small">Avg Speed</td>
+                        <td class="text-center fw-bold @WinClass(avgSpeedB, avgSpeedA)">@avgSpeedB.ToString("0.0") km/h</td>
+                    </tr>
+                }
+                <tr>
+                    <td class="text-center fw-bold @WinClass(bestKmA, bestKmB)">@bestKmA.ToString("0.0") km <span class="small">@Arrow(bestKmA, bestKmB)</span></td>
+                    <td class="text-center text-muted small">Longest Activity</td>
+                    <td class="text-center fw-bold @WinClass(bestKmB, bestKmA)">@bestKmB.ToString("0.0") km</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Month-by-month chart -->
+<div class="card bg-dark border-secondary">
+    <div class="card-header border-secondary">
+        <span class="fw-semibold">Monthly Distance — <span class="text-warning">@yA</span> vs <span class="text-info">@yB</span></span>
+    </div>
+    <div class="card-body">
+        <canvas id="monthChart" height="100"></canvas>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    var monthLabels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var dataA = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(monthsA.Select(m => Math.Round(m.km, 1)).ToList()));
+    var dataB = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(monthsB.Select(m => Math.Round(m.km, 1)).ToList()));
+
+    new Chart(document.getElementById("monthChart"), {
+        type: "bar",
+        data: {
+            labels: monthLabels,
+            datasets: [
+                {
+                    label: "@yA",
+                    data: dataA,
+                    backgroundColor: "rgba(253, 197, 37, 0.7)",
+                    borderColor: "#fdc525",
+                    borderWidth: 1,
+                },
+                {
+                    label: "@yB",
+                    data: dataB,
+                    backgroundColor: "rgba(13, 202, 240, 0.4)",
+                    borderColor: "#0dcaf0",
+                    borderWidth: 1,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: "#adb5bd" } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) { return ctx.dataset.label + ": " + ctx.parsed.y.toFixed(1) + " km"; }
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { color: "#adb5bd" }, grid: { color: "#343a40" } },
+                y: { ticks: { color: "#adb5bd", callback: v => v + " km" }, grid: { color: "#343a40" } }
+            }
+        }
+    });
+})();
+</script>
+}

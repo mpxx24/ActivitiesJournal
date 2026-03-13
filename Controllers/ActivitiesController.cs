@@ -1582,6 +1582,60 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> YearComparison(int? yearA = null, int? yearB = null, string? type = null)
+    {
+        try
+        {
+            type ??= "Ride";
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var activities = FilterByActivityType(all, type);
+
+            var availableYears = activities.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
+            int yA = yearA ?? DateTime.Now.Year;
+            int yB = yearB ?? (yA - 1);
+
+            double TotalKm(int y) => activities.Where(a => a.StartDateLocal.Year == y).Sum(a => a.Distance / 1000.0);
+            int TotalCount(int y) => activities.Count(a => a.StartDateLocal.Year == y);
+            double TotalElev(int y) => activities.Where(a => a.StartDateLocal.Year == y).Sum(a => (double)a.TotalElevationGain);
+            double TotalHours(int y) => activities.Where(a => a.StartDateLocal.Year == y).Sum(a => a.MovingTime / 3600.0);
+            double AvgKm(int y) { var c = TotalCount(y); return c > 0 ? TotalKm(y) / c : 0; }
+            double AvgSpeed(int y) { var h = TotalHours(y); return h > 0 ? TotalKm(y) / h : 0; }
+            double BestKm(int y) => activities.Where(a => a.StartDateLocal.Year == y).Select(a => a.Distance / 1000.0).DefaultIfEmpty(0).Max();
+
+            // Per-month breakdown
+            List<(int month, double km, int count)> MonthBreakdown(int y) =>
+                Enumerable.Range(1, 12).Select(m =>
+                {
+                    var acts = activities.Where(a => a.StartDateLocal.Year == y && a.StartDateLocal.Month == m).ToList();
+                    return (m, acts.Sum(a => a.Distance / 1000.0), acts.Count);
+                }).ToList();
+
+            ViewBag.ActivityType = type;
+            ViewBag.ActivityTypeLabel = ActivityTypeLabel(type);
+            ViewBag.IsWalk = type == "Walk";
+            ViewBag.AvailableYears = availableYears;
+            ViewBag.YearA = yA;
+            ViewBag.YearB = yB;
+            ViewBag.TotalKmA = TotalKm(yA); ViewBag.TotalKmB = TotalKm(yB);
+            ViewBag.CountA = TotalCount(yA); ViewBag.CountB = TotalCount(yB);
+            ViewBag.ElevA = TotalElev(yA); ViewBag.ElevB = TotalElev(yB);
+            ViewBag.HoursA = TotalHours(yA); ViewBag.HoursB = TotalHours(yB);
+            ViewBag.AvgKmA = AvgKm(yA); ViewBag.AvgKmB = AvgKm(yB);
+            ViewBag.AvgSpeedA = AvgSpeed(yA); ViewBag.AvgSpeedB = AvgSpeed(yB);
+            ViewBag.BestKmA = BestKm(yA); ViewBag.BestKmB = BestKm(yB);
+            ViewBag.MonthsA = MonthBreakdown(yA);
+            ViewBag.MonthsB = MonthBreakdown(yB);
+
+            return View();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading year comparison");
+            ViewBag.Error = "Failed to load comparison data.";
+            return View();
+        }
+    }
+
     public async Task<IActionResult> LongestRide(string? type = null)
     {
         try
