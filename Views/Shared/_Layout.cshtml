@@ -5,7 +5,7 @@
     bool isCyclingSection = currentController == "Goals"
         || (currentController == "Activities" && currentAction is
             "PersonalRecords" or "MonthComparison" or "DayInHistory" or
-            "Calendar" or "Badges" or "Analysis" or "Fitness" or "Segments" or "Timeline" or "SpeedTrend" or "Histogram" or "NameAnalysis" or "CumulativeDistance" or "WeatherInsights" or "RouteLibrary");
+            "Calendar" or "Badges" or "Analysis" or "Fitness" or "Segments" or "Timeline" or "SpeedTrend" or "Histogram" or "NameAnalysis" or "CumulativeDistance" or "WeatherInsights" or "RouteLibrary" or "LongestRide");
     bool isWalkingSection = currentController == "Activities" && currentAction == "WalkAnalytics";
 }
 <!DOCTYPE html>
@@ -110,6 +110,11 @@
                                 <li>
                                     <a class="dropdown-item" asp-controller="Activities" asp-action="RouteLibrary">
                                         <i class="bi bi-signpost-2 me-2"></i>Route Library
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" asp-controller="Activities" asp-action="LongestRide">
+                                        <i class="bi bi-trophy-fill me-2"></i>Longest Ride
                                     </a>
                                 </li>
                                 <li>

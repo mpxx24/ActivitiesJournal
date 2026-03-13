@@ -1582,6 +1582,52 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> LongestRide(string? type = null)
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var actType = type ?? "Ride";
+            var filtered = FilterByActivityType(all, actType == "Walk" ? "Walk" : "Ride");
+
+            var longest = filtered
+                .Where(a => a.Map?.SummaryPolyline != null)
+                .OrderByDescending(a => a.Distance)
+                .FirstOrDefault();
+
+            ViewBag.ActivityType = actType;
+            ViewBag.IsWalk = actType == "Walk";
+
+            if (longest != null)
+            {
+                var isWalk = actType == "Walk";
+                var distKm = longest.Distance / 1000.0;
+                var movingHours = longest.MovingTime / 3600.0;
+                var speedKmh = movingHours > 0 ? distKm / movingHours : 0;
+                var paceMinKm = distKm > 0 ? (longest.MovingTime / 60.0) / distKm : 0;
+
+                ViewBag.DistanceKm = distKm.ToString("0.0");
+                ViewBag.Duration = $"{(int)(longest.MovingTime / 3600)}h {(int)((longest.MovingTime % 3600) / 60)}m";
+                ViewBag.SpeedOrPace = isWalk
+                    ? $"{(int)paceMinKm}:{(int)Math.Round((paceMinKm - (int)paceMinKm) * 60):D2} /km"
+                    : $"{speedKmh:0.0} km/h";
+                ViewBag.SpeedOrPaceLabel = isWalk ? "Avg Pace" : "Avg Speed";
+                ViewBag.Elevation = longest.TotalElevationGain.ToString("0") + " m";
+                ViewBag.Date = longest.StartDateLocal.ToString("d MMMM yyyy");
+                ViewBag.RankInAll = filtered.OrderByDescending(a => a.Distance).ToList().IndexOf(longest) + 1;
+                ViewBag.TotalActivities = filtered.Count;
+            }
+
+            return View(longest);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading longest ride/walk data");
+            ViewBag.Error = "Failed to load data.";
+            return View((Models.StravaActivity?)null);
+        }
+    }
+
     public async Task<IActionResult> Heatmap(int? year = null, string? mode = null)
     {
         try

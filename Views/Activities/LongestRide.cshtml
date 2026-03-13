@@ -1,0 +1,112 @@
+@model ActivitiesJournal.Models.StravaActivity?
+@{
+    ViewData["Title"] = "Longest Activity";
+    bool isWalk = ViewBag.IsWalk == true;
+    string actType = ViewBag.ActivityType ?? "Ride";
+    string icon = isWalk ? "bi-person-walking" : "bi-bicycle";
+    string label = isWalk ? "Walk / Hike" : "Ride";
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi @icon me-2 text-warning"></i>Longest @label</h2>
+    <div>
+        <a href="?type=Ride" class="btn btn-sm @(actType == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1">
+            <i class="bi bi-bicycle me-1"></i>Ride
+        </a>
+        <a href="?type=Walk" class="btn btn-sm @(actType == "Walk" ? "btn-success" : "btn-outline-secondary")">
+            <i class="bi bi-person-walking me-1"></i>Walk
+        </a>
+    </div>
+</div>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger">@ViewBag.Error</div>
+}
+
+@if (Model == null)
+{
+    <div class="alert alert-info">No @label activities with GPS data found.</div>
+}
+else
+{
+    <div class="row g-4">
+        <!-- Stats sidebar -->
+        <div class="col-12 col-lg-4 order-lg-2">
+            <div class="card bg-dark border-secondary h-auto">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0 fw-semibold text-truncate" title="@Model.Name">@Model.Name</h5>
+                    <div class="text-muted small">@ViewBag.Date</div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-6">
+                            <div class="fw-bold fs-4 text-warning">@ViewBag.DistanceKm km</div>
+                            <div class="text-muted small">Distance</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="fw-bold fs-4">@ViewBag.Duration</div>
+                            <div class="text-muted small">Moving Time</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="fw-bold fs-4">@ViewBag.SpeedOrPace</div>
+                            <div class="text-muted small">@ViewBag.SpeedOrPaceLabel</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="fw-bold fs-4">@ViewBag.Elevation</div>
+                            <div class="text-muted small">Elevation Gain</div>
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary" />
+
+                    <div class="text-center text-muted small mb-2">
+                        #@ViewBag.RankInAll of @ViewBag.TotalActivities @label@(ViewBag.TotalActivities > 1 ? "s" : "") by distance
+                    </div>
+
+                    @if (Model.AverageHeartrate.HasValue)
+                    {
+                        <div class="d-flex justify-content-between small text-muted border-top border-secondary pt-2 mt-2">
+                            <span><i class="bi bi-heart-pulse me-1 text-danger"></i>Avg HR</span>
+                            <span class="fw-semibold">@((int)Model.AverageHeartrate.Value) bpm</span>
+                        </div>
+                    }
+                    @if (Model.AverageCadence.HasValue && !isWalk)
+                    {
+                        <div class="d-flex justify-content-between small text-muted border-top border-secondary pt-2 mt-1">
+                            <span><i class="bi bi-arrow-repeat me-1"></i>Avg Cadence</span>
+                            <span class="fw-semibold">@((int)Model.AverageCadence.Value) rpm</span>
+                        </div>
+                    }
+                    @if (Model.AverageWatts.HasValue && !isWalk)
+                    {
+                        <div class="d-flex justify-content-between small text-muted border-top border-secondary pt-2 mt-1">
+                            <span><i class="bi bi-lightning me-1 text-warning"></i>Avg Power</span>
+                            <span class="fw-semibold">@((int)Model.AverageWatts.Value) W</span>
+                        </div>
+                    }
+                    @if (Model.KudosCount > 0)
+                    {
+                        <div class="d-flex justify-content-between small text-muted border-top border-secondary pt-2 mt-1">
+                            <span><i class="bi bi-hand-thumbs-up me-1"></i>Kudos</span>
+                            <span class="fw-semibold">@Model.KudosCount</span>
+                        </div>
+                    }
+
+                    <div class="mt-3">
+                        <a href="/Activities/Details/@Model.Id" class="btn btn-outline-warning btn-sm w-100">
+                            <i class="bi bi-eye me-1"></i>View Full Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map -->
+        <div class="col-12 col-lg-8 order-lg-1">
+            <div class="activity-map rounded border border-secondary"
+                 data-polyline="@Model.Map!.SummaryPolyline"
+                 style="height: 500px;"></div>
+        </div>
+    </div>
+}
