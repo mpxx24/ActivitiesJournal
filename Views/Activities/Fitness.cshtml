@@ -27,6 +27,42 @@
         <div class="alert alert-danger"><strong>Error:</strong> @ViewBag.Error</div>
     }
 
+    <!-- Plain English readiness card -->
+    @{
+        string readinessIcon, readinessBorder, readinessTitle, readinessAdvice;
+        if (Model.CurrentTsb > 10) {
+            readinessIcon = "bi-emoji-laughing text-success"; readinessBorder = "border-success";
+            readinessTitle = "You're Fresh & Ready";
+            readinessAdvice = "Your body is well rested and fitness is high — ideal conditions for a hard effort, long ride, or a personal best attempt.";
+        } else if (Model.CurrentTsb > 0) {
+            readinessIcon = "bi-emoji-smile text-info"; readinessBorder = "border-info";
+            readinessTitle = "Feeling Good";
+            readinessAdvice = "You're in good shape with a slight positive form. A steady ride or moderate effort will feel comfortable today.";
+        } else if (Model.CurrentTsb > -10) {
+            readinessIcon = "bi-emoji-neutral text-warning"; readinessBorder = "border-warning";
+            readinessTitle = "Normal Training Load";
+            readinessAdvice = "You're in productive training territory. A regular ride is fine; just don't overdo it — fatigue is building.";
+        } else if (Model.CurrentTsb > -25) {
+            readinessIcon = "bi-emoji-frown text-warning"; readinessBorder = "border-warning";
+            readinessTitle = "Building Fatigue";
+            readinessAdvice = "Your legs are feeling the recent training. Keep intensity low — recovery ride or easy walk recommended today.";
+        } else {
+            readinessIcon = "bi-emoji-dizzy text-danger"; readinessBorder = "border-danger";
+            readinessTitle = "Fatigued — Rest Recommended";
+            readinessAdvice = "High accumulated fatigue. Taking a rest day or very easy spin today will pay off with better performance later in the week.";
+        }
+    }
+    <div class="card @readinessBorder mb-4" style="border-width:2px">
+        <div class="card-body d-flex align-items-start gap-3">
+            <i class="bi @readinessIcon fs-2 mt-1"></i>
+            <div>
+                <div class="fw-bold fs-5">@readinessTitle</div>
+                <div class="text-muted">@readinessAdvice</div>
+                <div class="mt-2 small text-muted">TSB = <strong>@Model.CurrentTsb.ToString("0.0")</strong> &middot; CTL @Model.CurrentCtl.ToString("0.0") &middot; ATL @Model.CurrentAtl.ToString("0.0")</div>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-3 mb-4">
         <div class="col-md-4">
             <div class="card stat-card">
