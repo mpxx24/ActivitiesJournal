@@ -5,7 +5,7 @@
     bool isCyclingSection = currentController == "Goals"
         || (currentController == "Activities" && currentAction is
             "PersonalRecords" or "MonthComparison" or "DayInHistory" or
-            "Calendar" or "Badges" or "Analysis" or "Fitness" or "Segments" or "Timeline" or "SpeedTrend" or "Histogram" or "NameAnalysis" or "CumulativeDistance" or "WeatherInsights" or "RouteLibrary" or "LongestRide" or "YearComparison" or "ThisTimeLastYear");
+            "Calendar" or "Badges" or "Analysis" or "Fitness" or "Segments" or "Timeline" or "SpeedTrend" or "Histogram" or "NameAnalysis" or "CumulativeDistance" or "WeatherInsights" or "RouteLibrary" or "LongestRide" or "YearComparison" or "ThisTimeLastYear" or "YearInReview");
     bool isWalkingSection = currentController == "Activities" && currentAction == "WalkAnalytics";
 }
 <!DOCTYPE html>
@@ -150,6 +150,11 @@
                                 <li>
                                     <a class="dropdown-item" asp-controller="Activities" asp-action="DayInHistory">
                                         <i class="bi bi-calendar-event me-2"></i>On This Day
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" asp-controller="Activities" asp-action="YearInReview">
+                                        <i class="bi bi-stars me-2"></i>Year in Review
                                     </a>
                                 </li>
                                 <li><hr class="dropdown-divider" /></li>

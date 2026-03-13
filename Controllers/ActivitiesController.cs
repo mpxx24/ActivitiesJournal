@@ -1615,6 +1615,75 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> YearInReview(int? year = null)
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            int selectedYear = year ?? DateTime.Now.Year;
+            var availableYears = all.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
+
+            var rides = all.Where(a => a.StartDateLocal.Year == selectedYear &&
+                a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+            var walks = all.Where(a => a.StartDateLocal.Year == selectedYear &&
+                a.SportType is "Walk" or "Hike" or "VirtualWalk").ToList();
+            var allYear = all.Where(a => a.StartDateLocal.Year == selectedYear).ToList();
+
+            // Best rides
+            var longestRide = rides.OrderByDescending(a => a.Distance).FirstOrDefault();
+            var fastestRide = rides.Where(a => a.Distance >= 20000).OrderByDescending(a => a.AverageSpeed).FirstOrDefault();
+            var mostElevRide = rides.OrderByDescending(a => a.TotalElevationGain).FirstOrDefault();
+
+            // Streak
+            var rideDates = rides.Select(a => a.StartDateLocal.Date).Distinct().OrderDescending().ToList();
+            int bestStreak = 0, cur = 0;
+            DateTime? prev = null;
+            foreach (var d in rideDates.OrderBy(d => d))
+            {
+                if (prev == null || d == prev.Value.AddDays(1)) { cur++; if (cur > bestStreak) bestStreak = cur; }
+                else cur = 1;
+                prev = d;
+            }
+
+            // Active months
+            var activeMonths = allYear.Select(a => a.StartDateLocal.Month).Distinct().Count();
+            // Biggest month
+            var biggestMonth = Enumerable.Range(1, 12)
+                .Select(m => (month: m, km: rides.Where(a => a.StartDateLocal.Month == m).Sum(a => a.Distance / 1000.0)))
+                .OrderByDescending(x => x.km).First();
+
+            ViewBag.SelectedYear = selectedYear;
+            ViewBag.AvailableYears = availableYears;
+            ViewBag.RideCount = rides.Count;
+            ViewBag.RideKm = rides.Sum(a => a.Distance / 1000.0);
+            ViewBag.RideElevM = (int)rides.Sum(a => (double)a.TotalElevationGain);
+            ViewBag.RideHours = rides.Sum(a => a.MovingTime / 3600.0);
+            ViewBag.WalkCount = walks.Count;
+            ViewBag.WalkKm = walks.Sum(a => a.Distance / 1000.0);
+            ViewBag.LongestRide = longestRide != null ? (longestRide.Distance / 1000.0).ToString("0.0") + " km" : "–";
+            ViewBag.LongestRideName = longestRide?.Name ?? "–";
+            ViewBag.FastestRide = fastestRide != null ? (fastestRide.AverageSpeed * 3.6).ToString("0.0") + " km/h" : "–";
+            ViewBag.FastestRideName = fastestRide?.Name ?? "–";
+            ViewBag.MostElevRide = mostElevRide != null ? ((int)mostElevRide.TotalElevationGain) + " m" : "–";
+            ViewBag.MostElevRideName = mostElevRide?.Name ?? "–";
+            ViewBag.BestStreak = bestStreak;
+            ViewBag.ActiveMonths = activeMonths;
+            ViewBag.BiggestMonth = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(biggestMonth.month);
+            ViewBag.BiggestMonthKm = biggestMonth.km.ToString("0.0");
+            // Monthly km for spark
+            ViewBag.MonthlyKm = Enumerable.Range(1, 12).Select(m =>
+                Math.Round(rides.Where(a => a.StartDateLocal.Month == m).Sum(a => a.Distance / 1000.0), 1)).ToList();
+
+            return View();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading year in review");
+            ViewBag.Error = "Failed to load year in review data.";
+            return View();
+        }
+    }
+
     public async Task<IActionResult> ThisTimeLastYear(string? type = null)
     {
         try
