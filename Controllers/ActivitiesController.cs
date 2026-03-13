@@ -874,6 +874,64 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> NameAnalysis(string? type = null)
+    {
+        try
+        {
+            type ??= "All";
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var activities = FilterByActivityType(all, type);
+
+            // Word frequency from activity names
+            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "a","an","the","and","or","in","on","at","to","for","of","with","by","from","my","i",
+                "morning","afternoon","evening","night","ride","run","walk","hike","workout",
+                "-","–","—","&","/","\\",
+            };
+
+            var wordCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var a in activities)
+            {
+                if (string.IsNullOrWhiteSpace(a.Name)) continue;
+                foreach (var word in a.Name.Split(new[] { ' ', ',', '.', '!', '?', '(', ')', '[', ']', '#' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var clean = word.Trim('-').ToLowerInvariant();
+                    if (clean.Length < 2 || stopWords.Contains(clean) || int.TryParse(clean, out _)) continue;
+                    wordCounts[clean] = wordCounts.GetValueOrDefault(clean, 0) + 1;
+                }
+            }
+
+            var top50 = wordCounts.OrderByDescending(kv => kv.Value).Take(50)
+                .Select(kv => (Word: kv.Key, Count: kv.Value)).ToList();
+
+            ViewBag.ActivityType = type;
+            ViewBag.ActivityTypeLabel = ActivityTypeLabel(type);
+            ViewBag.Top50 = top50;
+            ViewBag.TotalActivities = activities.Count;
+
+            // Also top name starters (first word)
+            var starters = activities
+                .Where(a => !string.IsNullOrWhiteSpace(a.Name))
+                .Select(a => a.Name.Split(' ')[0].Trim())
+                .Where(w => w.Length > 1)
+                .GroupBy(w => w, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(g => g.Count())
+                .Take(10)
+                .Select(g => (Word: g.Key, Count: g.Count()))
+                .ToList();
+            ViewBag.TopStarters = starters;
+
+            return View();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading name analysis");
+            ViewBag.Error = "Failed to load name analysis.";
+            return View();
+        }
+    }
+
     public async Task<IActionResult> Histogram(string? type = null)
     {
         try

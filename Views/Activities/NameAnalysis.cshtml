@@ -1,0 +1,109 @@
+@{
+    ViewData["Title"] = "Name Analysis";
+    string actType = ViewBag.ActivityType ?? "All";
+    var top50 = (IEnumerable<(string Word, int Count)>)(ViewBag.Top50 ?? new List<(string, int)>());
+    var starters = (IEnumerable<(string Word, int Count)>)(ViewBag.TopStarters ?? new List<(string, int)>());
+    int maxCount = top50.Any() ? top50.Max(x => x.Count) : 1;
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-chat-quote me-2 text-warning"></i>Activity Name Analysis</h2>
+</div>
+
+<div class="mb-4">
+    <a href="?type=Ride" class="btn btn-sm @(actType == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1"><i class="bi bi-bicycle me-1"></i>Rides</a>
+    <a href="?type=Walk" class="btn btn-sm @(actType == "Walk" ? "btn-success" : "btn-outline-secondary") me-1"><i class="bi bi-person-walking me-1"></i>Walks</a>
+    <a href="?type=All"  class="btn btn-sm @(actType == "All"  ? "btn-primary"  : "btn-outline-secondary")"><i class="bi bi-grid me-1"></i>All</a>
+    <span class="ms-3 text-muted small">@ViewBag.TotalActivities activities analysed</span>
+</div>
+
+@if (ViewBag.Error != null) { <div class="alert alert-danger">@ViewBag.Error</div> }
+
+@if (!top50.Any())
+{
+    <div class="alert alert-info">No activity name data found.</div>
+}
+else
+{
+    <!-- Word cloud -->
+    <div class="card mb-4">
+        <div class="card-header fw-semibold"><i class="bi bi-cloud me-2"></i>Word Cloud (top 50)</div>
+        <div class="card-body" style="line-height:2.2; text-align:center">
+            @foreach (var (word, count) in top50)
+            {
+                double relSize = 0.8 + 2.8 * (double)count / maxCount;
+                double opacity = 0.5 + 0.5 * (double)count / maxCount;
+                string[] colors = ["#ffc107","#17a2b8","#28a745","#fd7e14","#6f42c1","#20c997","#dc3545","#0dcaf0"];
+                string color = colors[Math.Abs(word.GetHashCode()) % colors.Length];
+                <span class="word-cloud-item"
+                      title="@count occurrences"
+                      style="font-size:@relSize.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)rem;color:@color;opacity:@opacity.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);margin:0.2rem 0.5rem;display:inline-block;cursor:default;font-weight:@(count == maxCount ? "bold" : "normal")">
+                    @word
+                </span>
+            }
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Top words bar chart -->
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-header fw-semibold"><i class="bi bi-bar-chart me-2"></i>Top 20 Words by Frequency</div>
+                <div class="card-body">
+                    <canvas id="wordsChart" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top name starters -->
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header fw-semibold"><i class="bi bi-list-ol me-2"></i>Top Name Starters</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-dark"><tr><th class="ps-3">First Word</th><th class="text-end pe-3">Count</th></tr></thead>
+                        <tbody>
+                            @foreach (var (word, count) in starters)
+                            {
+                                <tr>
+                                    <td class="ps-3">@word</td>
+                                    <td class="text-end pe-3">@count</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    const top20Labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(top50.Take(20).Select(x => x.Word).ToArray()));
+    const top20Data   = [@string.Join(",", top50.Take(20).Select(x => x.Count))];
+
+    new Chart(document.getElementById('wordsChart'), {
+        type: 'bar',
+        data: {
+            labels: top20Labels,
+            datasets: [{
+                data: top20Data,
+                backgroundColor: '#ffc107',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, ticks: { color: '#adb5bd', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            }
+        }
+    });
+})();
+</script>
+}
