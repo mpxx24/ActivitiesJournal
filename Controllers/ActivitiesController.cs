@@ -190,6 +190,20 @@ public class ActivitiesController : Controller
         }
     }
 
+    private static List<Models.StravaActivity> FilterByActivityType(List<Models.StravaActivity> all, string type) => type switch
+    {
+        "Walk" => all.Where(a => a.SportType is "Walk" or "Hike" or "VirtualWalk").ToList(),
+        "All"  => all,
+        _      => all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList(),
+    };
+
+    private static string ActivityTypeLabel(string type) => type switch
+    {
+        "Walk" => "Walks & Hikes",
+        "All"  => "All Activities",
+        _      => "Rides",
+    };
+
     private static int ComputeLongestStreak(List<DateTime> sortedDates)
     {
         if (!sortedDates.Any()) return 0;
@@ -235,12 +249,15 @@ public class ActivitiesController : Controller
             Progress = earned ? null : $"{actualM:0}/{targetM:0} m" };
     }
 
-    public async Task<IActionResult> Calendar(int? year = null)
+    public async Task<IActionResult> Calendar(int? year = null, string? type = null)
     {
         try
         {
+            type ??= "Ride";
             var all = await _stravaService.GetAllActivitiesAsync();
-            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+            var rides = FilterByActivityType(all, type);
+            ViewBag.ActivityType = type;
+            ViewBag.ActivityTypeLabel = ActivityTypeLabel(type);
 
             var availableYears = rides.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
             int selectedYear = year ?? DateTime.Now.Year;
@@ -291,12 +308,15 @@ public class ActivitiesController : Controller
         }
     }
 
-    public async Task<IActionResult> DayInHistory()
+    public async Task<IActionResult> DayInHistory(string? type = null)
     {
         try
         {
+            type ??= "Ride";
             var all = await _stravaService.GetAllActivitiesAsync();
-            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+            var rides = FilterByActivityType(all, type);
+            ViewBag.ActivityType = type;
+            ViewBag.ActivityTypeLabel = ActivityTypeLabel(type);
 
             var today = DateTime.Now;
 
@@ -374,12 +394,15 @@ public class ActivitiesController : Controller
         }
     }
 
-    public async Task<IActionResult> MonthComparison(int? year = null)
+    public async Task<IActionResult> MonthComparison(int? year = null, string? type = null)
     {
         try
         {
+            type ??= "Ride";
             var all = await _stravaService.GetAllActivitiesAsync();
-            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+            var rides = FilterByActivityType(all, type);
+            ViewBag.ActivityType = type;
+            ViewBag.ActivityTypeLabel = ActivityTypeLabel(type);
 
             var availableYears = rides.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
             int selectedYear = year ?? DateTime.Now.Year;
@@ -435,12 +458,15 @@ public class ActivitiesController : Controller
         }
     }
 
-    public async Task<IActionResult> PersonalRecords()
+    public async Task<IActionResult> PersonalRecords(string? type = null)
     {
         try
         {
+            type ??= "Ride";
             var all = await _stravaService.GetAllActivitiesAsync();
-            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+            var rides = FilterByActivityType(all, type);
+            ViewBag.ActivityType = type;
+            ViewBag.ActivityTypeLabel = ActivityTypeLabel(type);
 
             if (!rides.Any())
             {
@@ -448,27 +474,45 @@ public class ActivitiesController : Controller
             }
 
             var longestByDist = rides.MaxBy(a => a.Distance)!;
-            var fastestAvg = rides.Where(a => a.Distance >= 20_000).MaxBy(a => a.AverageSpeed);
             var mostClimbing = rides.MaxBy(a => a.TotalElevationGain)!;
             var longestTime = rides.MaxBy(a => a.MovingTime)!;
-            var maxSpeed = rides.MaxBy(a => a.MaxSpeed)!;
 
             var records = new List<Models.PersonalRecord>
             {
-                new() { Label = "Longest Ride", Value = $"{longestByDist.Distance / 1000.0:0.00} km", Icon = "bi-rulers", Activity = longestByDist },
-                new() { Label = "Most Time in Saddle", Value = TimeSpan.FromSeconds(longestTime.MovingTime).ToString(@"h\:mm\:ss"), Icon = "bi-clock", Activity = longestTime },
+                new() { Label = "Longest", Value = $"{longestByDist.Distance / 1000.0:0.00} km", Icon = "bi-rulers", Activity = longestByDist },
+                new() { Label = "Longest Time", Value = TimeSpan.FromSeconds(longestTime.MovingTime).ToString(@"h\:mm\:ss"), Icon = "bi-clock", Activity = longestTime },
                 new() { Label = "Most Elevation", Value = $"{mostClimbing.TotalElevationGain:0} m", Icon = "bi-triangle", Activity = mostClimbing },
-                new() { Label = "Top Speed (max)", Value = $"{maxSpeed.MaxSpeed * 3.6:0.0} km/h", Icon = "bi-lightning-charge", Activity = maxSpeed },
             };
 
-            if (fastestAvg != null)
-                records.Insert(1, new() { Label = "Fastest Avg Speed (≥20 km)", Value = $"{fastestAvg.AverageSpeed * 3.6:0.0} km/h", Icon = "bi-speedometer2", Activity = fastestAvg });
+            if (type == "Walk")
+            {
+                // Best pace for walks (min/km), min 3 km
+                var bestPace = rides.Where(a => a.Distance >= 3000 && a.MovingTime > 0)
+                                    .MinBy(a => a.MovingTime / (a.Distance / 1000.0));
+                if (bestPace != null)
+                {
+                    double secPerKm = bestPace.MovingTime / (bestPace.Distance / 1000.0);
+                    int min = (int)(secPerKm / 60), sec = (int)(secPerKm % 60);
+                    records.Add(new() { Label = "Best Pace", Value = $"{min}:{sec:D2} /km", Icon = "bi-lightning-charge", Activity = bestPace });
+                }
+            }
+            else
+            {
+                var maxSpeed = rides.MaxBy(a => a.MaxSpeed)!;
+                records.Add(new() { Label = "Top Speed (max)", Value = $"{maxSpeed.MaxSpeed * 3.6:0.0} km/h", Icon = "bi-lightning-charge", Activity = maxSpeed });
+                var fastestAvg = rides.Where(a => a.Distance >= 20_000).MaxBy(a => a.AverageSpeed);
+                if (fastestAvg != null)
+                    records.Add(new() { Label = "Fastest Avg Speed (≥20 km)", Value = $"{fastestAvg.AverageSpeed * 3.6:0.0} km/h", Icon = "bi-speedometer2", Activity = fastestAvg });
+            }
 
             var vm = new Models.PersonalRecordsViewModel
             {
                 AllTimeRecords = records,
                 Top10Longest = rides.OrderByDescending(a => a.Distance).Take(10).ToList(),
-                Top10Fastest = rides.Where(a => a.Distance >= 20_000).OrderByDescending(a => a.AverageSpeed).Take(10).ToList(),
+                Top10Fastest = type == "Walk"
+                    ? rides.Where(a => a.Distance >= 3000 && a.MovingTime > 0)
+                           .OrderBy(a => a.MovingTime / (a.Distance / 1000.0)).Take(10).ToList()
+                    : rides.Where(a => a.Distance >= 20_000).OrderByDescending(a => a.AverageSpeed).Take(10).ToList(),
                 Top10MostClimbing = rides.OrderByDescending(a => a.TotalElevationGain).Take(10).ToList(),
                 TotalRides = rides.Count,
                 TotalDistanceKm = rides.Sum(a => a.Distance) / 1000.0,

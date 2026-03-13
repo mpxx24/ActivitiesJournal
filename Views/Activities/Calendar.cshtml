@@ -2,16 +2,18 @@
 @{
     ViewData["Title"] = "Activity Calendar";
     var monthNames = new[] { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+    string actType = ViewBag.ActivityType ?? "Ride";
 }
 
 <div class="container-fluid">
-    <div class="row mb-4 align-items-center">
+    <div class="row mb-3 align-items-center">
         <div class="col">
             <h1 class="page-title">Activity Calendar @Model.Year</h1>
-            <p class="text-muted">@Model.TotalRides rides &middot; @Model.TotalDistanceKm km &middot; @Model.TotalElevationM m climbing &middot; @Model.ActiveDays active days</p>
+            <p class="text-muted">@Model.TotalRides activities &middot; @Model.TotalDistanceKm km &middot; @Model.TotalElevationM m climbing &middot; @Model.ActiveDays active days</p>
         </div>
         <div class="col-auto">
             <form method="get" class="d-flex gap-2 align-items-center">
+                <input type="hidden" name="type" value="@actType" />
                 <label class="text-muted">Year:</label>
                 <select name="year" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()">
                     @foreach (var y in Model.AvailableYears)
@@ -21,6 +23,11 @@
                 </select>
             </form>
         </div>
+    </div>
+    <div class="mb-3">
+        <a href="?year=@Model.Year&type=Ride" class="btn btn-sm @(actType == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1"><i class="bi bi-bicycle me-1"></i>Rides</a>
+        <a href="?year=@Model.Year&type=Walk" class="btn btn-sm @(actType == "Walk" ? "btn-success" : "btn-outline-secondary") me-1"><i class="bi bi-person-walking me-1"></i>Walks</a>
+        <a href="?year=@Model.Year&type=All"  class="btn btn-sm @(actType == "All"  ? "btn-primary"  : "btn-outline-secondary")"><i class="bi bi-grid me-1"></i>All</a>
     </div>
 
     @if (ViewBag.Error != null)
@@ -56,8 +63,8 @@
                                 Model.DayData.TryGetValue(date, out var data);
                                 var level = data?.Level ?? 0;
                                 var title = data != null
-                                    ? $"{data.RideCount} ride(s) · {data.DistanceKm} km · {data.ElevationM} m elev"
-                                    : "No ride";
+                                    ? $"{data.RideCount} activity(ies) · {data.DistanceKm} km · {data.ElevationM} m elev"
+                                    : "No activity";
                                 <div class="cal-day cal-day-level-@level" title="@date.ToString("MMM d") — @title">
                                     <span class="cal-day-num">@day</span>
                                 </div>
