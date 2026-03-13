@@ -874,6 +874,74 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> SpeedTrend(string? type = null, int? year = null)
+    {
+        try
+        {
+            type ??= "Ride";
+            bool isWalk = type == "Walk";
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var activities = FilterByActivityType(all, type)
+                .Where(a => a.Distance > 0 && a.MovingTime > 0)
+                .OrderBy(a => a.StartDateLocal)
+                .ToList();
+
+            var availableYears = activities.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
+
+            if (year.HasValue)
+                activities = activities.Where(a => a.StartDateLocal.Year == year.Value).ToList();
+
+            var points = activities.Select(a =>
+            {
+                double distKm = a.Distance / 1000.0;
+                double val = isWalk
+                    ? a.MovingTime / distKm / 60.0          // pace in min/km (decimal)
+                    : a.AverageSpeed * 3.6;                  // speed in km/h
+                return new Models.SpeedTrendPoint
+                {
+                    Date = a.StartDateLocal,
+                    Value = Math.Round(val, 2),
+                    DistanceKm = Math.Round(distKm, 1),
+                    ActivityId = a.Id,
+                    ActivityName = a.Name,
+                };
+            }).ToList();
+
+            // 10-activity rolling average
+            const int window = 10;
+            var rolling = new List<Models.SpeedTrendPoint>();
+            for (int i = window - 1; i < points.Count; i++)
+            {
+                double avg = points.Skip(i - window + 1).Take(window).Average(p => p.Value);
+                rolling.Add(new Models.SpeedTrendPoint
+                {
+                    Date = points[i].Date,
+                    Value = Math.Round(avg, 2),
+                });
+            }
+
+            var vm = new Models.SpeedTrendViewModel
+            {
+                ActivityType = type,
+                ActivityTypeLabel = ActivityTypeLabel(type),
+                IsWalk = isWalk,
+                YAxisLabel = isWalk ? "min/km" : "km/h",
+                Points = points,
+                RollingAvg = rolling,
+                AvailableYears = availableYears,
+                SelectedYear = year,
+            };
+
+            return View(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading speed trend");
+            ViewBag.Error = "Failed to load speed trend data.";
+            return View(new Models.SpeedTrendViewModel());
+        }
+    }
+
     public async Task<IActionResult> Timeline(string? type = null)
     {
         try

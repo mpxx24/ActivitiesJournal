@@ -1,0 +1,172 @@
+@model ActivitiesJournal.Models.SpeedTrendViewModel
+@{
+    ViewData["Title"] = Model.IsWalk ? "Pace Trend" : "Speed Trend";
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    string ToDateStr(DateTime d) => d.ToString("yyyy-MM-dd");
+
+    // Scatter data: {x: "date", y: value}
+    var scatterJson = "[" + string.Join(",",
+        Model.Points.Select(p => $"{{\"x\":\"{ToDateStr(p.Date)}\",\"y\":{p.Value.ToString(inv)},\"dist\":{p.DistanceKm.ToString(inv)},\"name\":{System.Text.Json.JsonSerializer.Serialize(p.ActivityName)}}}")) + "]";
+
+    // Rolling avg line data
+    var rollingJson = "[" + string.Join(",",
+        Model.RollingAvg.Select(p => $"{{\"x\":\"{ToDateStr(p.Date)}\",\"y\":{p.Value.ToString(inv)}}}")) + "]";
+
+    string title = Model.IsWalk ? "Pace over Time (min/km)" : "Speed over Time (km/h)";
+    string color = Model.ActivityType == "Walk" ? "#198754" : Model.ActivityType == "All" ? "#0d6efd" : "#ffc107";
+    string note  = Model.IsWalk ? "Lower is faster. Rolling avg over last 10 walks." : "Rolling avg over last 10 rides.";
+
+    string FormatVal(double v) {
+        if (Model.IsWalk) {
+            int m = (int)v; int s = (int)Math.Round((v - m) * 60);
+            return $"{m}:{s:D2} /km";
+        }
+        return $"{v:0.0} km/h";
+    }
+
+    double avg   = Model.Points.Any() ? Model.Points.Average(p => p.Value) : 0;
+    double best  = Model.Points.Any() ? (Model.IsWalk ? Model.Points.Min(p => p.Value) : Model.Points.Max(p => p.Value)) : 0;
+    double worst = Model.Points.Any() ? (Model.IsWalk ? Model.Points.Max(p => p.Value) : Model.Points.Min(p => p.Value)) : 0;
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-speedometer2 me-2 text-warning"></i>@title</h2>
+</div>
+
+<div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
+    <div>
+        <a href="?type=Ride@(Model.SelectedYear.HasValue ? "&year=" + Model.SelectedYear : "")" class="btn btn-sm @(Model.ActivityType == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1"><i class="bi bi-bicycle me-1"></i>Rides</a>
+        <a href="?type=Walk@(Model.SelectedYear.HasValue ? "&year=" + Model.SelectedYear : "")" class="btn btn-sm @(Model.ActivityType == "Walk" ? "btn-success" : "btn-outline-secondary") me-1"><i class="bi bi-person-walking me-1"></i>Walks</a>
+        <a href="?type=All@(Model.SelectedYear.HasValue  ? "&year=" + Model.SelectedYear : "")" class="btn btn-sm @(Model.ActivityType == "All"  ? "btn-primary" : "btn-outline-secondary")"><i class="bi bi-grid me-1"></i>All</a>
+    </div>
+    @if (Model.AvailableYears.Any())
+    {
+        <form method="get" class="d-flex align-items-center gap-2">
+            <input type="hidden" name="type" value="@Model.ActivityType" />
+            <label class="text-muted small">Year:</label>
+            <select name="year" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()" style="width:auto">
+                <option value="">All time</option>
+                @foreach (var y in Model.AvailableYears)
+                {
+                    <option value="@y" selected="@(y == Model.SelectedYear)">@y</option>
+                }
+            </select>
+        </form>
+    }
+</div>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger">@ViewBag.Error</div>
+}
+
+@if (!Model.Points.Any())
+{
+    <div class="alert alert-info">No data found for the selected filters.</div>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-header fw-semibold">
+            <i class="bi bi-graph-up me-2"></i>@title
+            <small class="text-muted ms-2">@note</small>
+        </div>
+        <div class="card-body">
+            <canvas id="trendChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="row g-3">
+        <div class="col-4">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="fw-bold">@FormatVal(avg)</div>
+                    <div class="small text-muted">Average</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card text-center border-success">
+                <div class="card-body py-2">
+                    <div class="fw-bold text-success">@FormatVal(best)</div>
+                    <div class="small text-muted">@(Model.IsWalk ? "Best pace" : "Fastest")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="fw-bold text-muted">@FormatVal(worst)</div>
+                    <div class="small text-muted">@(Model.IsWalk ? "Slowest pace" : "Slowest")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+(function () {
+    const isWalk = @(Model.IsWalk ? "true" : "false");
+    const scatter = @Html.Raw(scatterJson);
+    const rolling = @Html.Raw(rollingJson);
+    const BAR_COLOR = '@color';
+
+    new Chart(document.getElementById('trendChart'), {
+        data: {
+            datasets: [
+                {
+                    type: 'scatter',
+                    label: 'Individual',
+                    data: scatter,
+                    backgroundColor: BAR_COLOR + '88',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                },
+                {
+                    type: 'line',
+                    label: '10-activity avg',
+                    data: rolling,
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.4,
+                }
+            ]
+        },
+        options: {
+            plugins: {
+                legend: { labels: { color: '#adb5bd' } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const pt = ctx.raw;
+                            if (pt.name) {
+                                const v = isWalk
+                                    ? Math.floor(pt.y) + ':' + String(Math.round((pt.y % 1) * 60)).padStart(2,'0') + ' /km'
+                                    : pt.y.toFixed(1) + ' km/h';
+                                return `${pt.name} — ${v} (${pt.dist} km)`;
+                            }
+                            return ctx.dataset.label + ': ' + pt.y;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { type: 'time', time: { unit: 'month' }, ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: {
+                    reverse: isWalk,  // lower pace = better, so reverse for walks
+                    title: { display: true, text: '@Model.YAxisLabel', color: '#adb5bd' },
+                    ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' }
+                }
+            }
+        }
+    });
+})();
+</script>
+}
