@@ -874,6 +874,63 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> CumulativeDistance(string? type = null, int? year = null)
+    {
+        try
+        {
+            type ??= "Ride";
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var activities = FilterByActivityType(all, type);
+
+            var availableYears = activities.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
+            int selectedYear = year ?? DateTime.Now.Year;
+            int priorYear = selectedYear - 1;
+
+            // Build day-by-day cumulative for each year
+            // Returns list of (dayOfYear 1..365, cumulKm) for that year up to the min of yearEnd and today
+            List<(int day, double cumKm)> BuildCumulative(int y)
+            {
+                var yearActs = activities.Where(a => a.StartDateLocal.Year == y)
+                    .OrderBy(a => a.StartDateLocal).ToList();
+                var result = new List<(int, double)>();
+                double cum = 0;
+                var start = new DateTime(y, 1, 1);
+                var maxDay = y == DateTime.Today.Year ? DateTime.Today : new DateTime(y, 12, 31);
+                var byDate = yearActs.ToLookup(a => a.StartDateLocal.Date);
+                for (var d = start; d <= maxDay; d = d.AddDays(1))
+                {
+                    cum += byDate[d].Sum(a => a.Distance / 1000.0);
+                    int doy = (d - start).Days + 1;
+                    result.Add((doy, Math.Round(cum, 1)));
+                }
+                return result;
+            }
+
+            var currentCum  = BuildCumulative(selectedYear);
+            var priorCum    = BuildCumulative(priorYear);
+
+            // Only return every 7th point to keep chart responsive
+            static List<(int day, double cumKm)> Downsample(List<(int day, double cumKm)> pts) =>
+                pts.Where((_, i) => i % 3 == 0 || i == pts.Count - 1).ToList();
+
+            ViewBag.ActivityType = type;
+            ViewBag.ActivityTypeLabel = ActivityTypeLabel(type);
+            ViewBag.SelectedYear = selectedYear;
+            ViewBag.PriorYear = priorYear;
+            ViewBag.AvailableYears = availableYears;
+            ViewBag.CurrentCum = Downsample(currentCum);
+            ViewBag.PriorCum   = Downsample(priorCum);
+
+            return View();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading cumulative distance");
+            ViewBag.Error = "Failed to load cumulative distance data.";
+            return View();
+        }
+    }
+
     public async Task<IActionResult> NameAnalysis(string? type = null)
     {
         try

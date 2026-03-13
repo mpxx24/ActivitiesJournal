@@ -1,0 +1,149 @@
+@{
+    ViewData["Title"] = "Cumulative Distance";
+    string actType   = ViewBag.ActivityType ?? "Ride";
+    int selYear      = ViewBag.SelectedYear ?? DateTime.Now.Year;
+    int priorYear    = ViewBag.PriorYear ?? selYear - 1;
+    var avail        = (IEnumerable<int>)(ViewBag.AvailableYears ?? new List<int>());
+    var inv          = System.Globalization.CultureInfo.InvariantCulture;
+
+    var current = (IEnumerable<(int day, double cumKm)>)(ViewBag.CurrentCum ?? new List<(int, double)>());
+    var prior   = (IEnumerable<(int day, double cumKm)>)(ViewBag.PriorCum   ?? new List<(int, double)>());
+
+    // Convert day-of-year to approximate date label (Jan 1 = 1)
+    string DayLabel(int doy, int y) {
+        try { return new DateTime(y, 1, 1).AddDays(doy - 1).ToString("MMM d"); } catch { return doy.ToString(); }
+    }
+
+    string curLabels = System.Text.Json.JsonSerializer.Serialize(current.Select(p => DayLabel(p.day, selYear)).ToArray());
+    string curData   = "[" + string.Join(",", current.Select(p => p.cumKm.ToString("0.0", inv))) + "]";
+
+    string priData   = "[" + string.Join(",", prior.Select(p => p.cumKm.ToString("0.0", inv))) + "]";
+    // Align prior year data to same x-axis (same day-of-year labels as current)
+    // We build a lookup for prior year by day-of-year
+    var priorByDay   = prior.ToDictionary(p => p.day, p => p.cumKm);
+    string priAligned = "[" + string.Join(",", current.Select(p => priorByDay.TryGetValue(p.day, out var v) ? v.ToString("0.0", inv) : "null")) + "]";
+
+    double curTotal  = current.Any() ? current.Last().cumKm : 0;
+    double priTotal  = prior.Any()  ? prior.Last().cumKm  : 0;
+    double diff      = curTotal - priTotal;
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-graph-up me-2 text-warning"></i>Cumulative Distance</h2>
+</div>
+
+<div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
+    <div>
+        <a href="?type=Ride&year=@selYear" class="btn btn-sm @(actType == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1"><i class="bi bi-bicycle me-1"></i>Rides</a>
+        <a href="?type=Walk&year=@selYear" class="btn btn-sm @(actType == "Walk" ? "btn-success" : "btn-outline-secondary") me-1"><i class="bi bi-person-walking me-1"></i>Walks</a>
+        <a href="?type=All&year=@selYear"  class="btn btn-sm @(actType == "All"  ? "btn-primary"  : "btn-outline-secondary")"><i class="bi bi-grid me-1"></i>All</a>
+    </div>
+    @if (avail.Any())
+    {
+        <form method="get" class="d-flex align-items-center gap-2">
+            <input type="hidden" name="type" value="@actType" />
+            <label class="text-muted small">Year:</label>
+            <select name="year" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()" style="width:auto">
+                @foreach (var y in avail)
+                {
+                    <option value="@y" selected="@(y == selYear)">@y</option>
+                }
+            </select>
+        </form>
+    }
+</div>
+
+@if (ViewBag.Error != null) { <div class="alert alert-danger">@ViewBag.Error</div> }
+
+<!-- Summary badges -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="fs-3 fw-bold text-warning">@curTotal.ToString("0.0") <span class="fs-6 text-muted">km</span></div>
+                <div class="small text-muted">@selYear YTD</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="fs-3 fw-bold text-muted">@priTotal.ToString("0.0") <span class="fs-6 text-muted">km</span></div>
+                <div class="small text-muted">@priorYear same period</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="fs-3 fw-bold @(diff >= 0 ? "text-success" : "text-danger")">
+                    @(diff >= 0 ? "+" : "")@diff.ToString("0.0") <span class="fs-6 text-muted">km</span>
+                </div>
+                <div class="small text-muted">vs @priorYear</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                @{
+                    double pct = priTotal > 0 ? (curTotal / priTotal - 1) * 100 : 0;
+                }
+                <div class="fs-3 fw-bold @(pct >= 0 ? "text-success" : "text-danger")">
+                    @(pct >= 0 ? "+" : "")@pct.ToString("0")%
+                </div>
+                <div class="small text-muted">year-over-year</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header fw-semibold">
+        <i class="bi bi-graph-up me-2"></i>Cumulative Distance — @selYear vs @priorYear
+    </div>
+    <div class="card-body">
+        <canvas id="cumChart" height="100"></canvas>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+new Chart(document.getElementById('cumChart'), {
+    type: 'line',
+    data: {
+        labels: @Html.Raw(curLabels),
+        datasets: [
+            {
+                label: '@selYear',
+                data: @Html.Raw(curData),
+                borderColor: '@(actType == "Walk" ? "#198754" : actType == "All" ? "#0d6efd" : "#ffc107")',
+                borderWidth: 2.5,
+                pointRadius: 0,
+                fill: false,
+                tension: 0.2,
+            },
+            {
+                label: '@priorYear',
+                data: @Html.Raw(priAligned),
+                borderColor: '#6c757d',
+                borderWidth: 1.5,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false,
+                tension: 0.2,
+            }
+        ]
+    },
+    options: {
+        plugins: { legend: { labels: { color: '#adb5bd' } } },
+        scales: {
+            x: { ticks: { color: '#adb5bd', maxTicksLimit: 12 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { beginAtZero: true, ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' },
+                 title: { display: true, text: 'km', color: '#adb5bd' } }
+        }
+    }
+});
+</script>
+}
