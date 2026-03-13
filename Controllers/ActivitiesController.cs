@@ -164,6 +164,14 @@ public class ActivitiesController : Controller
             double dryAvgSpeed = data.Where(r => r.Item4 < 0.5 && r.Item1.AverageSpeed > 0).DefaultIfEmpty().Average(r => r == default ? 0 : r.Item1.AverageSpeed * 3.6);
             double wetAvgSpeed = data.Where(r => r.Item4 >= 0.5 && r.Item1.AverageSpeed > 0).DefaultIfEmpty().Average(r => r == default ? 0 : r.Item1.AverageSpeed * 3.6);
 
+            // Best conditions: temp range with best avg performance (min 3 activities)
+            bool isWalkMode = type == "Walk";
+            var bestTempGroup = byTemp.Where(g => g.Count >= 3)
+                .OrderBy(g => isWalkMode ? g.AvgValue : -g.AvgValue)  // lower pace = better; higher speed = better
+                .FirstOrDefault();
+            // Most frequent temp range
+            var mostFreqTemp = byTemp.OrderByDescending(g => g.Count).FirstOrDefault();
+
             ViewBag.ActivityCount = activities.Count;
             ViewBag.FetchedCount = data.Count;
             ViewBag.ByTemp = byTemp;
@@ -171,8 +179,14 @@ public class ActivitiesController : Controller
             ViewBag.WetCount = wetCount;
             ViewBag.DryAvgSpeed = Math.Round(dryAvgSpeed, 1);
             ViewBag.WetAvgSpeed = Math.Round(wetAvgSpeed, 1);
-            ViewBag.IsWalk = type == "Walk";
+            ViewBag.IsWalk = isWalkMode;
             ViewBag.Limit = limit;
+            ViewBag.BestTempLabel = bestTempGroup.Label;
+            ViewBag.BestTempValue = bestTempGroup.AvgValue;
+            ViewBag.BestTempCount = bestTempGroup.Count;
+            ViewBag.MostFreqTempLabel = mostFreqTemp.Label;
+            ViewBag.MostFreqTempCount = mostFreqTemp.Count;
+            ViewBag.PrefersDry = dryCount > wetCount * 2;
 
             return View();
         }

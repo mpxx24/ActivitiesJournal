@@ -39,6 +39,50 @@
 }
 else
 {
+    <!-- Best conditions summary -->
+    @if (ViewBag.BestTempLabel != null)
+    {
+        <div class="card mb-4 border-success">
+            <div class="card-header bg-success bg-opacity-25 fw-semibold">
+                <i class="bi bi-stars me-2 text-warning"></i>Best Conditions Summary
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="bi bi-thermometer-half fs-2 text-warning"></i>
+                            <div class="fw-bold mt-1">@ViewBag.BestTempLabel</div>
+                            <div class="small text-muted">Best @(isWalk ? "pace" : "speed") temperature range (@ViewBag.BestTempCount activities)</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="bi bi-person-walking fs-2 text-success"></i>
+                            <div class="fw-bold mt-1">@ViewBag.MostFreqTempLabel</div>
+                            <div class="small text-muted">Most active temperature range (@ViewBag.MostFreqTempCount activities)</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            @if (ViewBag.PrefersDry == true)
+                            {
+                                <i class="bi bi-sun-fill fs-2 text-warning"></i>
+                                <div class="fw-bold mt-1">Mainly dry</div>
+                                <div class="small text-muted">@ViewBag.DryCount dry vs @ViewBag.WetCount wet activities</div>
+                            }
+                            else
+                            {
+                                <i class="bi bi-cloud-rain fs-2 text-info"></i>
+                                <div class="fw-bold mt-1">Rain-or-shine</div>
+                                <div class="small text-muted">@ViewBag.DryCount dry vs @ViewBag.WetCount wet activities</div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     <!-- Temperature vs performance -->
     <div class="card mb-4">
         <div class="card-header fw-semibold">
