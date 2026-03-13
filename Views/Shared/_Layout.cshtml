@@ -167,6 +167,11 @@
                             </ul>
                         </li>
                         <li class="nav-item ms-sm-auto">
+                            <button id="theme-toggle" class="nav-link btn btn-link text-muted" title="Toggle light/dark theme">
+                                <i class="bi bi-moon-stars" id="theme-icon"></i>
+                            </button>
+                        </li>
+                        <li class="nav-item">
                             <form method="post" asp-controller="Strava" asp-action="ClearCache"
                                   asp-route-returnUrl="@Context.Request.Path">
                                 @Html.AntiForgeryToken()

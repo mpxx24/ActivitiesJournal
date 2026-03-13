@@ -1,3 +1,30 @@
+/* Theme variables */
+:root {
+  --body-bg: #111827;
+  --body-color: #e5e7eb;
+  --card-bg: #1f2937;
+  --card-border: rgba(75, 85, 99, 0.6);
+  --card-header-bg: rgba(249, 115, 22, 0.08);
+  --input-bg: #1f2937;
+  --input-color: #e5e7eb;
+  --input-border: #4b5563;
+  --muted-color: #9ca3af;
+  --table-bg: rgba(15, 23, 42, 0.95);
+}
+
+[data-theme="light"] {
+  --body-bg: #f3f4f6;
+  --body-color: #111827;
+  --card-bg: #ffffff;
+  --card-border: rgba(209, 213, 219, 0.8);
+  --card-header-bg: rgba(249, 115, 22, 0.06);
+  --input-bg: #ffffff;
+  --input-color: #111827;
+  --input-border: #d1d5db;
+  --muted-color: #6b7280;
+  --table-bg: #f9fafb;
+}
+
 html {
   font-size: 14px;
 }
@@ -15,8 +42,9 @@ html {
 
 .app-body {
   margin-bottom: 60px;
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: var(--body-bg);
+  color: var(--body-color);
+  transition: background-color 0.2s, color 0.2s;
 }
 
 .app-navbar {
@@ -39,14 +67,26 @@ html {
 }
 
 .card {
-  background-color: #ffffff;
-  border: 1px solid rgba(209, 213, 219, 0.8);
-  color: #111827;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--body-color);
 }
 
 .card-header {
-  background: linear-gradient(to right, rgba(249, 115, 22, 0.1), rgba(59, 130, 246, 0.05));
-  border-bottom: 1px solid rgba(209, 213, 219, 0.8);
+  background: var(--card-header-bg);
+  border-bottom: 1px solid var(--card-border);
+}
+
+/* Light theme overrides for Bootstrap dark utility classes */
+[data-theme="light"] .bg-dark { background-color: var(--card-bg) !important; }
+[data-theme="light"] .text-light { color: var(--body-color) !important; }
+[data-theme="light"] .border-secondary { border-color: var(--card-border) !important; }
+[data-theme="light"] .table-dark { --bs-table-bg: #f0f4f8; --bs-table-color: #111827; }
+[data-theme="light"] .dropdown-menu-dark { --bs-dropdown-bg: #ffffff; --bs-dropdown-color: #111827; --bs-dropdown-link-color: #374151; --bs-dropdown-link-hover-bg: #f3f4f6; }
+[data-theme="light"] .form-select.bg-dark, [data-theme="light"] .form-control.bg-dark {
+  background-color: var(--input-bg) !important;
+  color: var(--input-color) !important;
+  border-color: var(--input-border) !important;
 }
 
 .stat-card .stat-label {

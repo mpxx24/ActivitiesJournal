@@ -1,5 +1,11 @@
 // Global JavaScript for the site, including activity maps.
 
+// Apply saved theme immediately (before DOMContentLoaded to avoid flash)
+(function () {
+  var t = localStorage.getItem("theme") || "dark";
+  document.documentElement.setAttribute("data-theme", t);
+})();
+
 (function () {
   // Decode an encoded polyline (Google/Strava format) into [lat, lng] pairs.
   function decodePolyline(str, precision) {
@@ -165,14 +171,36 @@
     }
   }
 
+  function initThemeToggle() {
+    var btn = document.getElementById("theme-toggle");
+    var icon = document.getElementById("theme-icon");
+    if (!btn || !icon) return;
+
+    function applyTheme(t) {
+      document.documentElement.setAttribute("data-theme", t);
+      icon.className = t === "light" ? "bi bi-sun" : "bi bi-moon-stars";
+      localStorage.setItem("theme", t);
+    }
+
+    // Sync icon with current theme
+    applyTheme(document.documentElement.getAttribute("data-theme") || "dark");
+
+    btn.addEventListener("click", function () {
+      var current = document.documentElement.getAttribute("data-theme") || "dark";
+      applyTheme(current === "dark" ? "light" : "dark");
+    });
+  }
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       initActivityMaps();
       initHeatmap();
+      initThemeToggle();
     });
   } else {
     initActivityMaps();
     initHeatmap();
+    initThemeToggle();
   }
 })();
 
