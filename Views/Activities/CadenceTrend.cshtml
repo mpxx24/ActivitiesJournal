@@ -1,0 +1,193 @@
+@{
+    ViewData["Title"] = "Cadence Trend";
+    int? selectedYear = ViewBag.SelectedYear as int?;
+    var availableYears = ViewBag.AvailableYears as List<int> ?? new();
+    double overallAvg = ViewBag.OverallAvg ?? 0;
+    double maxCad = ViewBag.MaxCad ?? 0;
+    double minCad = ViewBag.MinCad ?? 0;
+    int totalRides = ViewBag.TotalRides ?? 0;
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3 flex-wrap gap-2">
+    <h2><i class="bi bi-arrow-repeat me-2 text-warning"></i>Cadence Trend</h2>
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <label class="text-muted small">Year:</label>
+        <select name="year" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="this.form.submit()">
+            <option value="" selected="@(selectedYear == null)">All time</option>
+            @foreach (var y in availableYears)
+            {
+                <option value="@y" selected="@(y == selectedYear)">@y</option>
+            }
+        </select>
+    </form>
+</div>
+
+@if (ViewBag.Error != null) { <div class="alert alert-danger">@ViewBag.Error</div> }
+
+@if (totalRides == 0)
+{
+    <div class="alert alert-info">No rides with cadence data found. Cadence requires a cadence sensor.</div>
+}
+else
+{
+    <!-- Stats row -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card bg-dark border-secondary text-center">
+                <div class="card-body py-3">
+                    <div class="text-muted small mb-1">Avg Cadence</div>
+                    <div class="fw-bold fs-3 text-warning">@overallAvg.ToString("0.0")</div>
+                    <div class="text-muted small">rpm</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card bg-dark border-secondary text-center">
+                <div class="card-body py-3">
+                    <div class="text-muted small mb-1">Highest</div>
+                    <div class="fw-bold fs-3 text-success">@maxCad.ToString("0")</div>
+                    <div class="text-muted small">rpm</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card bg-dark border-secondary text-center">
+                <div class="card-body py-3">
+                    <div class="text-muted small mb-1">Lowest</div>
+                    <div class="fw-bold fs-3 text-muted">@minCad.ToString("0")</div>
+                    <div class="text-muted small">rpm</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card bg-dark border-secondary text-center">
+                <div class="card-body py-3">
+                    <div class="text-muted small mb-1">Rides with Data</div>
+                    <div class="fw-bold fs-3 text-info">@totalRides</div>
+                    <div class="text-muted small">rides</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (overallAvg > 0)
+    {
+        <div class="alert @(overallAvg >= 85 ? "alert-success" : overallAvg >= 75 ? "alert-warning" : "alert-secondary") small mb-4">
+            <i class="bi bi-info-circle me-1"></i>
+            @if (overallAvg >= 90) { <span>Great cadence! Smooth, high cadence (90+ rpm) is efficient and joint-friendly.</span> }
+            else if (overallAvg >= 85) { <span>Good cadence. Most cycling coaches recommend 85–95 rpm for endurance riding.</span> }
+            else if (overallAvg >= 75) { <span>Moderate cadence. Consider working on spinning efficiency — aim for 85+ rpm on flatter terrain.</span> }
+            else { <span>Low cadence (&lt;75 rpm) puts more stress on joints. Try a slightly easier gear to increase rpm.</span> }
+        </div>
+    }
+
+    <!-- Scatter + rolling avg chart -->
+    <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header border-secondary fw-semibold">
+            Cadence per Ride
+            <span class="ms-3 small">
+                <span style="display:inline-block;width:12px;height:12px;background:rgba(253,197,37,0.5);border-radius:50%"></span> Each ride
+                <span class="ms-2" style="display:inline-block;width:30px;height:3px;background:#fd7e14;border-radius:2px;vertical-align:middle"></span> 10-ride rolling avg
+            </span>
+        </div>
+        <div class="card-body">
+            <canvas id="cadenceChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <!-- Monthly averages -->
+    <div class="card bg-dark border-secondary">
+        <div class="card-header border-secondary fw-semibold">Monthly Average Cadence</div>
+        <div class="card-body">
+            <canvas id="monthChart" height="70"></canvas>
+        </div>
+    </div>
+}
+
+@section Scripts {
+@if (totalRides > 0)
+{
+<script>
+(function () {
+    var points = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.Points));
+    var rolling = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.RollingAvg));
+    var months = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.MonthlyAvg));
+
+    var labels = points.map(p => p.Date);
+    var cadence = points.map(p => p.Cadence);
+
+    new Chart(document.getElementById("cadenceChart"), {
+        type: "scatter",
+        data: {
+            datasets: [
+                {
+                    label: "Cadence (rpm)",
+                    data: points.map((p, i) => ({ x: i, y: p.Cadence })),
+                    backgroundColor: "rgba(253,197,37,0.4)",
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                },
+                {
+                    label: "10-ride avg",
+                    data: rolling.map((r, i) => ({ x: i, y: r })),
+                    type: "line",
+                    borderColor: "#fd7e14",
+                    backgroundColor: "transparent",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.3,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: "#adb5bd" } },
+                tooltip: {
+                    callbacks: {
+                        title: items => labels[items[0].parsed.x] || "",
+                        label: ctx => {
+                            if (ctx.datasetIndex === 0) {
+                                var p = points[ctx.parsed.x];
+                                return [ctx.parsed.y + " rpm", p.Name.substring(0, 40)];
+                            }
+                            return "10-ride avg: " + ctx.parsed.y + " rpm";
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { display: false }, grid: { color: "#343a40" } },
+                y: { ticks: { color: "#adb5bd", callback: v => v + " rpm" }, grid: { color: "#343a40" }, min: Math.max(40, Math.min(...cadence) - 10) }
+            }
+        }
+    });
+
+    new Chart(document.getElementById("monthChart"), {
+        type: "bar",
+        data: {
+            labels: months.map(m => m.Label),
+            datasets: [{
+                label: "Avg cadence (rpm)",
+                data: months.map(m => m.Avg),
+                backgroundColor: "rgba(253,197,37,0.7)",
+                borderColor: "#fdc525",
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => ctx.parsed.y.toFixed(1) + " rpm (" + months[ctx.dataIndex].Count + " rides)" } }
+            },
+            scales: {
+                x: { ticks: { color: "#adb5bd", maxRotation: 45 }, grid: { display: false } },
+                y: { ticks: { color: "#adb5bd", callback: v => v + " rpm" }, grid: { color: "#343a40" }, min: Math.max(40, months.length ? Math.min(...months.map(m => m.Avg)) - 5 : 60) }
+            }
+        }
+    });
+})();
+</script>
+}
+}

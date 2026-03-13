@@ -1615,6 +1615,73 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> CadenceTrend(int? year = null)
+    {
+        try
+        {
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var rides = all
+                .Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide")
+                .Where(a => a.AverageCadence.HasValue && a.AverageCadence > 0)
+                .OrderBy(a => a.StartDateLocal)
+                .ToList();
+
+            var availableYears = rides.Select(r => r.StartDateLocal.Year).Distinct().OrderDescending().ToList();
+            var filtered = year.HasValue ? rides.Where(r => r.StartDateLocal.Year == year.Value).ToList() : rides;
+
+            // Build points: date, cadence, rolling 10-ride average
+            var points = filtered.Select(a => new {
+                Date = a.StartDateLocal.ToString("yyyy-MM-dd"),
+                Cadence = (double)a.AverageCadence!.Value,
+                DistKm = a.Distance / 1000.0,
+                Name = a.Name,
+                Id = a.Id,
+            }).ToList();
+
+            // Rolling 10-ride average of cadence
+            var rollingAvg = points.Select((p, i) =>
+            {
+                var window = points.Skip(Math.Max(0, i - 9)).Take(Math.Min(10, i + 1));
+                return Math.Round(window.Average(x => x.Cadence), 1);
+            }).ToList();
+
+            // Monthly averages
+            var monthlyAvg = filtered
+                .GroupBy(a => new { a.StartDateLocal.Year, a.StartDateLocal.Month })
+                .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
+                .Select(g => new {
+                    Label = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yy"),
+                    Avg = Math.Round(g.Average(a => (double)a.AverageCadence!.Value), 1),
+                    Count = g.Count(),
+                }).ToList();
+
+            double overallAvg = filtered.Any() ? filtered.Average(a => (double)a.AverageCadence!.Value) : 0;
+            double maxCad = filtered.Any() ? filtered.Max(a => (double)a.AverageCadence!.Value) : 0;
+            double minCad = filtered.Any() ? filtered.Min(a => (double)a.AverageCadence!.Value) : 0;
+            var bestCad = filtered.Any() ? filtered.OrderByDescending(a => a.AverageCadence).First() : null;
+
+            ViewBag.AvailableYears = availableYears;
+            ViewBag.SelectedYear = year;
+            ViewBag.Points = points;
+            ViewBag.RollingAvg = rollingAvg;
+            ViewBag.MonthlyAvg = monthlyAvg;
+            ViewBag.OverallAvg = overallAvg;
+            ViewBag.MaxCad = maxCad;
+            ViewBag.MinCad = minCad;
+            ViewBag.BestCadActivity = bestCad?.Name ?? "–";
+            ViewBag.BestCadId = bestCad?.Id;
+            ViewBag.TotalRides = filtered.Count;
+
+            return View();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading cadence trend");
+            ViewBag.Error = "Failed to load cadence data.";
+            return View();
+        }
+    }
+
     public async Task<IActionResult> ActiveMinutes(int weeks = 26)
     {
         try

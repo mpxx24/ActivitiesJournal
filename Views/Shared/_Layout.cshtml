@@ -11,7 +11,7 @@
     bool isCyclingSection = currentController == "Goals"
         || (currentController == "Activities" && currentAction is
             "PersonalRecords" or "MonthComparison" or "DayInHistory" or
-            "Calendar" or "Badges" or "Analysis" or "Fitness" or "Segments" or "Timeline" or "SpeedTrend" or "Histogram" or "NameAnalysis" or "CumulativeDistance" or "WeatherInsights" or "RouteLibrary" or "LongestRide" or "YearComparison" or "ThisTimeLastYear" or "YearInReview" or "ActiveMinutes");
+            "Calendar" or "Badges" or "Analysis" or "Fitness" or "Segments" or "Timeline" or "SpeedTrend" or "Histogram" or "NameAnalysis" or "CumulativeDistance" or "WeatherInsights" or "RouteLibrary" or "LongestRide" or "YearComparison" or "ThisTimeLastYear" or "YearInReview" or "ActiveMinutes" or "CadenceTrend");
     bool isWalkingSection = currentController == "Activities" && currentAction == "WalkAnalytics";
 }
 <!DOCTYPE html>
@@ -84,6 +84,11 @@
                                 <li>
                                     <a class="dropdown-item" asp-controller="Activities" asp-action="SpeedTrend">
                                         <i class="bi bi-graph-up-arrow me-2"></i>Speed / Pace Trend
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" asp-controller="Activities" asp-action="CadenceTrend">
+                                        <i class="bi bi-arrow-repeat me-2"></i>Cadence Trend
                                     </a>
                                 </li>
                                 <li>
