@@ -1582,6 +1582,62 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> ThisTimeLastYear(string? type = null)
+    {
+        try
+        {
+            type ??= "Ride";
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var activities = FilterByActivityType(all, type);
+
+            var today = DateTime.Today;
+            int thisYear = today.Year;
+            int lastYear = thisYear - 1;
+            // Same calendar date but previous year — include all up to that date
+            var cutoffLastYear = new DateTime(lastYear, today.Month, today.Day);
+
+            var ytd = activities.Where(a => a.StartDateLocal.Year == thisYear).ToList();
+            var ytdLast = activities.Where(a => a.StartDateLocal.Year == lastYear && a.StartDateLocal.Date <= cutoffLastYear).ToList();
+
+            double KmSum(List<Models.StravaActivity> acts) => acts.Sum(a => a.Distance / 1000.0);
+            double ElevSum(List<Models.StravaActivity> acts) => acts.Sum(a => (double)a.TotalElevationGain);
+            double HoursSum(List<Models.StravaActivity> acts) => acts.Sum(a => a.MovingTime / 3600.0);
+
+            // Weekly distance for last 12 weeks (both years aligned by week-of-year offset)
+            var weeklyThis = new List<(string label, double km)>();
+            var weeklyLast = new List<(string label, double km)>();
+            for (int w = 11; w >= 0; w--)
+            {
+                var weekStart = today.AddDays(-w * 7 - (int)today.DayOfWeek);
+                var weekEnd = weekStart.AddDays(6);
+                var label = weekStart.ToString("MMM d");
+                weeklyThis.Add((label, activities.Where(a => a.StartDateLocal.Date >= weekStart && a.StartDateLocal.Date <= weekEnd && a.StartDateLocal.Year == thisYear).Sum(a => a.Distance / 1000.0)));
+                var lws = weekStart.AddYears(-1); var lwe = weekEnd.AddYears(-1);
+                weeklyLast.Add((label, activities.Where(a => a.StartDateLocal.Date >= lws && a.StartDateLocal.Date <= lwe).Sum(a => a.Distance / 1000.0)));
+            }
+
+            ViewBag.ActivityType = type;
+            ViewBag.IsWalk = type == "Walk";
+            ViewBag.ThisYear = thisYear;
+            ViewBag.LastYear = lastYear;
+            ViewBag.Today = today.ToString("d MMMM");
+            ViewBag.KmThis = KmSum(ytd); ViewBag.KmLast = KmSum(ytdLast);
+            ViewBag.CountThis = ytd.Count; ViewBag.CountLast = ytdLast.Count;
+            ViewBag.ElevThis = ElevSum(ytd); ViewBag.ElevLast = ElevSum(ytdLast);
+            ViewBag.HoursThis = HoursSum(ytd); ViewBag.HoursLast = HoursSum(ytdLast);
+            ViewBag.WeeklyThis = weeklyThis;
+            ViewBag.WeeklyLast = weeklyLast;
+
+            return View();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading this time last year");
+            ViewBag.Error = "Failed to load data.";
+            return View();
+        }
+    }
+
     public async Task<IActionResult> YearComparison(int? yearA = null, int? yearB = null, string? type = null)
     {
         try

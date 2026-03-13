@@ -1,0 +1,114 @@
+@{
+    ViewData["Title"] = "This Time Last Year";
+    string type = ViewBag.ActivityType ?? "Ride";
+    bool isWalk = ViewBag.IsWalk == true;
+    int thisYear = ViewBag.ThisYear;
+    int lastYear = ViewBag.LastYear;
+    string today = ViewBag.Today;
+
+    double kmThis = ViewBag.KmThis, kmLast = ViewBag.KmLast;
+    int cntThis = ViewBag.CountThis, cntLast = ViewBag.CountLast;
+    double elevThis = ViewBag.ElevThis, elevLast = ViewBag.ElevLast;
+    double hoursThis = ViewBag.HoursThis, hoursLast = ViewBag.HoursLast;
+
+    var weeklyThis = ViewBag.WeeklyThis as List<(string label, double km)> ?? new();
+    var weeklyLast = ViewBag.WeeklyLast as List<(string label, double km)> ?? new();
+
+    string DeltaBadge(double cur, double prev) {
+        if (prev == 0 && cur == 0) return "<span class=\"badge bg-secondary\">–</span>";
+        if (prev == 0) return "<span class=\"badge bg-success\">new</span>";
+        double pct = (cur - prev) / prev * 100;
+        string cls = pct >= 0 ? "bg-success" : "bg-danger";
+        string sign = pct >= 0 ? "+" : "";
+        return $"<span class=\"badge {cls}\">{sign}{pct:0}%</span>";
+    }
+    string StatClass(double cur, double prev) => cur >= prev ? "text-success" : "text-danger";
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3 flex-wrap gap-2">
+    <div>
+        <h2><i class="bi bi-clock-history me-2 text-warning"></i>This Time Last Year</h2>
+        <p class="text-muted mb-0">YTD to @today — @thisYear vs @lastYear</p>
+    </div>
+    <div>
+        <a href="?type=Ride" class="btn btn-sm @(type == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1"><i class="bi bi-bicycle me-1"></i>Rides</a>
+        <a href="?type=Walk" class="btn btn-sm @(type == "Walk" ? "btn-success" : "btn-outline-secondary") me-1"><i class="bi bi-person-walking me-1"></i>Walks</a>
+        <a href="?type=All"  class="btn btn-sm @(type == "All"  ? "btn-primary"  : "btn-outline-secondary")"><i class="bi bi-grid me-1"></i>All</a>
+    </div>
+</div>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger">@ViewBag.Error</div>
+}
+
+<!-- Comparison cards -->
+<div class="row g-3 mb-4">
+    @{
+        var metrics = new[] {
+            ("Distance", kmThis.ToString("0.0") + " km", kmLast.ToString("0.0") + " km", kmThis, kmLast),
+            ("Activities", cntThis.ToString(), cntLast.ToString(), (double)cntThis, (double)cntLast),
+            ("Moving Time", hoursThis.ToString("0.0") + " h", hoursLast.ToString("0.0") + " h", hoursThis, hoursLast),
+            ("Elevation", ((int)elevThis) + " m", ((int)elevLast) + " m", elevThis, elevLast),
+        };
+    }
+    @foreach (var (label, valThis, valLast, cur, prev) in metrics)
+    {
+        <div class="col-6 col-md-3">
+            <div class="card bg-dark border-secondary text-center h-100">
+                <div class="card-body py-3">
+                    <div class="text-muted small mb-1">@label</div>
+                    <div class="fw-bold fs-4 @StatClass(cur, prev)">@valThis</div>
+                    <div class="text-muted small">vs @valLast last year</div>
+                    <div class="mt-1">@Html.Raw(DeltaBadge(cur, prev))</div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Weekly chart -->
+<div class="card bg-dark border-secondary">
+    <div class="card-header border-secondary fw-semibold">
+        Weekly Distance — last 12 weeks
+        <span class="ms-2 small">
+            <span style="display:inline-block;width:12px;height:12px;background:#fdc525;border-radius:2px"></span> @thisYear
+            <span class="ms-2" style="display:inline-block;width:12px;height:12px;background:rgba(13,202,240,0.5);border-radius:2px"></span> @lastYear
+        </span>
+    </div>
+    <div class="card-body">
+        <canvas id="weekChart" height="100"></canvas>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(weeklyThis.Select(w => w.label).ToList()));
+    var dataThis = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(weeklyThis.Select(w => Math.Round(w.km, 1)).ToList()));
+    var dataLast = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(weeklyLast.Select(w => Math.Round(w.km, 1)).ToList()));
+
+    new Chart(document.getElementById("weekChart"), {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [
+                { label: "@thisYear", data: dataThis, backgroundColor: "rgba(253,197,37,0.75)", borderColor: "#fdc525", borderWidth: 1 },
+                { label: "@lastYear", data: dataLast, backgroundColor: "rgba(13,202,240,0.35)", borderColor: "#0dcaf0", borderWidth: 1 }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: "#adb5bd" } },
+                tooltip: { callbacks: { label: ctx => ctx.dataset.label + ": " + ctx.parsed.y.toFixed(1) + " km" } }
+            },
+            scales: {
+                x: { ticks: { color: "#adb5bd", maxRotation: 45 }, grid: { color: "#343a40" } },
+                y: { ticks: { color: "#adb5bd", callback: v => v + " km" }, grid: { color: "#343a40" } }
+            }
+        }
+    });
+})();
+</script>
+}
