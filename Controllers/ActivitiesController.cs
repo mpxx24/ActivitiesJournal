@@ -874,6 +874,67 @@ public class ActivitiesController : Controller
         }
     }
 
+    public async Task<IActionResult> Histogram(string? type = null)
+    {
+        try
+        {
+            type ??= "Ride";
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var activities = FilterByActivityType(all, type).Where(a => a.Distance > 0).ToList();
+
+            var distRanges = new (double, double?, string)[]
+            {
+                (0, 5, "< 5 km"), (5, 10, "5–10 km"), (10, 20, "10–20 km"),
+                (20, 30, "20–30 km"), (30, 50, "30–50 km"), (50, 75, "50–75 km"),
+                (75, 100, "75–100 km"), (100, null, "100+ km"),
+            };
+            var distBuckets = distRanges.Select(r =>
+            {
+                double distKm(Models.StravaActivity a) => a.Distance / 1000.0;
+                var bucket = activities.Where(a => distKm(a) >= r.Item1 && (r.Item2 == null || distKm(a) < r.Item2.Value)).ToList();
+                return new Models.HistogramBucket { Label = r.Item3, Count = bucket.Count, TotalDistanceKm = Math.Round(bucket.Sum(a => a.Distance) / 1000.0, 1) };
+            }).ToList();
+
+            var durRanges = new (int, int?, string)[]
+            {
+                (0, 1800, "< 30 min"), (1800, 3600, "30–60 min"), (3600, 7200, "1–2 h"),
+                (7200, 10800, "2–3 h"), (10800, 18000, "3–5 h"), (18000, null, "5+ h"),
+            };
+            var durBuckets = durRanges.Select(r =>
+            {
+                var bucket = activities.Where(a => a.MovingTime >= r.Item1 && (r.Item2 == null || a.MovingTime < r.Item2.Value)).ToList();
+                return new Models.HistogramBucket { Label = r.Item3, Count = bucket.Count };
+            }).ToList();
+
+            var elevRanges = new (float, float?, string)[]
+            {
+                (0, 100, "< 100 m"), (100, 300, "100–300 m"), (300, 500, "300–500 m"),
+                (500, 1000, "500–1 000 m"), (1000, 2000, "1 000–2 000 m"), (2000, null, "2 000+ m"),
+            };
+            var elevBuckets = elevRanges.Select(r =>
+            {
+                var bucket = activities.Where(a => a.TotalElevationGain >= r.Item1 && (r.Item2 == null || a.TotalElevationGain < r.Item2.Value)).ToList();
+                return new Models.HistogramBucket { Label = r.Item3, Count = bucket.Count };
+            }).ToList();
+
+            return View(new Models.HistogramViewModel
+            {
+                ActivityType = type,
+                ActivityTypeLabel = ActivityTypeLabel(type),
+                TotalActivities = activities.Count,
+                DistanceBuckets = distBuckets,
+                DurationBuckets = durBuckets,
+                ElevationBuckets = elevBuckets,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading histogram");
+            ViewBag.Error = "Failed to load histogram data.";
+            return View(new Models.HistogramViewModel());
+        }
+    }
+
     public async Task<IActionResult> SpeedTrend(string? type = null, int? year = null)
     {
         try

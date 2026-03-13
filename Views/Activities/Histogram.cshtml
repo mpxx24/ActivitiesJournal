@@ -1,0 +1,114 @@
+@model ActivitiesJournal.Models.HistogramViewModel
+@{
+    ViewData["Title"] = "Distance Histogram";
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    string LabelsJson(IEnumerable<ActivitiesJournal.Models.HistogramBucket> b) =>
+        System.Text.Json.JsonSerializer.Serialize(b.Select(x => x.Label).ToArray());
+    string CountJson(IEnumerable<ActivitiesJournal.Models.HistogramBucket> b) =>
+        "[" + string.Join(",", b.Select(x => x.Count)) + "]";
+
+    string color = Model.ActivityType == "Walk" ? "#198754" : Model.ActivityType == "All" ? "#0d6efd" : "#ffc107";
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-bar-chart-steps me-2 text-warning"></i>Activity Distribution</h2>
+</div>
+
+<div class="mb-4">
+    <a href="?type=Ride" class="btn btn-sm @(Model.ActivityType == "Ride" ? "btn-warning" : "btn-outline-secondary") me-1"><i class="bi bi-bicycle me-1"></i>Rides</a>
+    <a href="?type=Walk" class="btn btn-sm @(Model.ActivityType == "Walk" ? "btn-success" : "btn-outline-secondary") me-1"><i class="bi bi-person-walking me-1"></i>Walks</a>
+    <a href="?type=All"  class="btn btn-sm @(Model.ActivityType == "All"  ? "btn-primary"  : "btn-outline-secondary")"><i class="bi bi-grid me-1"></i>All</a>
+    <span class="ms-3 text-muted small">@Model.TotalActivities total @Model.ActivityTypeLabel</span>
+</div>
+
+@if (ViewBag.Error != null) { <div class="alert alert-danger">@ViewBag.Error</div> }
+@if (!Model.DistanceBuckets.Any() || Model.TotalActivities == 0) { <div class="alert alert-info">No data found.</div> }
+else
+{
+    <div class="row g-4">
+        <!-- Distance histogram -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header fw-semibold"><i class="bi bi-rulers me-2"></i>By Distance</div>
+                <div class="card-body">
+                    <canvas id="distChart" height="160"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Duration histogram -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header fw-semibold"><i class="bi bi-clock me-2"></i>By Duration</div>
+                <div class="card-body">
+                    <canvas id="durChart" height="160"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Elevation histogram -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header fw-semibold"><i class="bi bi-triangle me-2"></i>By Elevation Gain</div>
+                <div class="card-body">
+                    <canvas id="elevChart" height="160"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data table for distance buckets -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header fw-semibold"><i class="bi bi-table me-2"></i>Distance Breakdown</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr><th class="ps-3">Range</th><th class="text-end">Count</th><th class="text-end">%</th><th class="text-end pe-3">Total km</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var b in Model.DistanceBuckets.Where(x => x.Count > 0))
+                            {
+                                double pct = Model.TotalActivities > 0 ? 100.0 * b.Count / Model.TotalActivities : 0;
+                                <tr>
+                                    <td class="ps-3">@b.Label</td>
+                                    <td class="text-end">@b.Count</td>
+                                    <td class="text-end text-muted">@pct.ToString("0.0")%</td>
+                                    <td class="text-end pe-3">@b.TotalDistanceKm.ToString("0.0")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const BAR_COLOR = '@color';
+
+function makeBar(id, labels, counts) {
+    new Chart(document.getElementById(id), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{ data: counts, backgroundColor: BAR_COLOR, borderRadius: 4 }]
+        },
+        options: {
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: { beginAtZero: true, ticks: { stepSize: 1, color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            }
+        }
+    });
+}
+
+makeBar('distChart', @Html.Raw(LabelsJson(Model.DistanceBuckets)), @Html.Raw(CountJson(Model.DistanceBuckets)));
+makeBar('durChart',  @Html.Raw(LabelsJson(Model.DurationBuckets)), @Html.Raw(CountJson(Model.DurationBuckets)));
+makeBar('elevChart', @Html.Raw(LabelsJson(Model.ElevationBuckets)), @Html.Raw(CountJson(Model.ElevationBuckets)));
+</script>
+}

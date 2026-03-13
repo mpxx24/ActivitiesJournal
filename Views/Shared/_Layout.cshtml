@@ -5,7 +5,7 @@
     bool isCyclingSection = currentController == "Goals"
         || (currentController == "Activities" && currentAction is
             "PersonalRecords" or "MonthComparison" or "DayInHistory" or
-            "Calendar" or "Badges" or "Analysis" or "Fitness" or "Segments" or "Timeline" or "SpeedTrend");
+            "Calendar" or "Badges" or "Analysis" or "Fitness" or "Segments" or "Timeline" or "SpeedTrend" or "Histogram");
     bool isWalkingSection = currentController == "Activities" && currentAction == "WalkAnalytics";
 }
 <!DOCTYPE html>
@@ -65,6 +65,11 @@
                             </a>
                             <ul class="dropdown-menu dropdown-menu-dark">
                                 <li><h6 class="dropdown-header text-muted">Performance</h6></li>
+                                <li>
+                                    <a class="dropdown-item" asp-controller="Activities" asp-action="Histogram">
+                                        <i class="bi bi-bar-chart-steps me-2"></i>Distribution
+                                    </a>
+                                </li>
                                 <li>
                                     <a class="dropdown-item" asp-controller="Activities" asp-action="SpeedTrend">
                                         <i class="bi bi-graph-up-arrow me-2"></i>Speed / Pace Trend
