@@ -1219,7 +1219,8 @@ public class ActivitiesController : Controller
 
             // Build day-by-day cumulative for each year
             // Returns list of (dayOfYear 1..365, cumulKm) for that year up to the min of yearEnd and today
-            List<(int day, double cumKm)> BuildCumulative(int y)
+            // limitToDoy caps the result at that day-of-year (used for "same period" prior year comparison)
+            List<(int day, double cumKm)> BuildCumulative(int y, int? limitToDoy = null)
             {
                 var yearActs = activities.Where(a => a.StartDateLocal.Year == y)
                     .OrderBy(a => a.StartDateLocal).ToList();
@@ -1227,6 +1228,11 @@ public class ActivitiesController : Controller
                 double cum = 0;
                 var start = new DateTime(y, 1, 1);
                 var maxDay = y == DateTime.Today.Year ? DateTime.Today : new DateTime(y, 12, 31);
+                if (limitToDoy.HasValue)
+                {
+                    var capped = start.AddDays(limitToDoy.Value - 1);
+                    if (capped < maxDay) maxDay = capped;
+                }
                 var byDate = yearActs.ToLookup(a => a.StartDateLocal.Date);
                 for (var d = start; d <= maxDay; d = d.AddDays(1))
                 {
@@ -1237,8 +1243,10 @@ public class ActivitiesController : Controller
                 return result;
             }
 
+            int todayDoy = (DateTime.Today - new DateTime(DateTime.Today.Year, 1, 1)).Days + 1;
             var currentCum  = BuildCumulative(selectedYear);
-            var priorCum    = BuildCumulative(priorYear);
+            // Cap prior year at same day-of-year as today for a true "same period" comparison
+            var priorCum    = BuildCumulative(priorYear, selectedYear == DateTime.Today.Year ? todayDoy : (int?)null);
 
             // Only return every 7th point to keep chart responsive
             static List<(int day, double cumKm)> Downsample(List<(int day, double cumKm)> pts) =>
