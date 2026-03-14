@@ -1,0 +1,147 @@
+@{
+    ViewData["Title"] = "Export Activities";
+}
+
+<div class="container">
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <strong>Error:</strong> @ViewBag.Error
+        </div>
+    }
+
+    <div class="row mb-4">
+        <div class="col">
+            <h1><i class="bi bi-download me-2"></i>Export Activities</h1>
+            <p class="text-muted">Download your Strava activity data as a JSON file. You can load this into any AI assistant (e.g. Claude, ChatGPT) to ask questions about your training.</p>
+        </div>
+    </div>
+
+    <form method="post" asp-action="Download" id="exportForm">
+        @Html.AntiForgeryToken()
+        <div class="row g-4">
+            <div class="col-md-5">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-bicycle me-2"></i>Activity Type</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="setAll('sports', true)">All</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAll('sports', false)">None</button>
+                        </div>
+                        <div id="sports-list">
+                            @foreach (var sport in (List<string>)ViewBag.SportTypes)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input filter-check" type="checkbox"
+                                           name="sports" value="@sport" id="sport-@sport" checked>
+                                    <label class="form-check-label" for="sport-@sport">@sport</label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-calendar me-2"></i>Year</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="setAll('years', true)">All</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAll('years', false)">None</button>
+                        </div>
+                        <div id="years-list">
+                            @foreach (var year in (List<int>)ViewBag.Years)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input filter-check" type="checkbox"
+                                           name="years" value="@year" id="year-@year" checked>
+                                    <label class="form-check-label" for="year-@year">@year</label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card mb-4 border-primary">
+                    <div class="card-body text-center py-4">
+                        <div class="mb-3">
+                            <span class="display-4 fw-bold text-primary" id="count-display">@ViewBag.TotalCount</span>
+                            <div class="text-muted">activities selected</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100" id="download-btn">
+                            <i class="bi bi-download me-2"></i>Download JSON
+                        </button>
+                        <div class="text-muted small mt-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Includes all fields: distance, pace, HR, power, elevation, splits, segments, GPS, gear, weather-compatible timestamps, and more.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-robot me-2"></i>Suggested AI prompts</h6>
+                    </div>
+                    <div class="card-body small text-muted">
+                        <ul class="mb-0 ps-3">
+                            <li>What are my most common activity types?</li>
+                            <li>How has my weekly distance changed over time?</li>
+                            <li>What was my best month for training?</li>
+                            <li>Show me trends in my average speed or pace.</li>
+                            <li>Which months do I train the most?</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    let debounceTimer;
+
+    function updateCount() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+            const sports = [...document.querySelectorAll('input[name="sports"]:checked')].map(el => el.value);
+            const years = [...document.querySelectorAll('input[name="years"]:checked')].map(el => el.value);
+
+            const params = new URLSearchParams();
+            sports.forEach(s => params.append('sports', s));
+            years.forEach(y => params.append('years', y));
+
+            const btn = document.getElementById('download-btn');
+            const display = document.getElementById('count-display');
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('@Url.Action("Count", "Export")?' + params.toString());
+                const data = await res.json();
+                display.textContent = data.count;
+                btn.disabled = data.count === 0;
+            } catch {
+                // ignore
+            } finally {
+                if (!btn.disabled) btn.disabled = false;
+            }
+        }, 250);
+    }
+
+    document.querySelectorAll('.filter-check').forEach(el => el.addEventListener('change', updateCount));
+
+    window.setAll = function (group, checked) {
+        document.querySelectorAll(`input[name="${group}"]`).forEach(el => el.checked = checked);
+        updateCount();
+    };
+})();
+</script>
+}

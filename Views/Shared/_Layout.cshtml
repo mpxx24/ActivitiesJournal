@@ -8,6 +8,7 @@
         : (DateTime.Now - cacheTs.Value).TotalMinutes < 60 ? $"{(int)(DateTime.Now - cacheTs.Value).TotalMinutes}m ago"
         : $"{(int)(DateTime.Now - cacheTs.Value).TotalHours}h ago";
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+    bool isExportSection = currentController == "Export";
     bool isCyclingSection = currentController == "Goals"
         || (currentController == "Activities" && currentAction is
             "PersonalRecords" or "MonthComparison" or "DayInHistory" or
@@ -52,6 +53,11 @@
                         <li class="nav-item">
                             <a class="nav-link" asp-area="" asp-controller="Activities" asp-action="Summary">
                                 <i class="bi bi-graph-up-arrow me-1"></i> Summary
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(isExportSection ? "active" : "")" asp-area="" asp-controller="Export" asp-action="Index">
+                                <i class="bi bi-download me-1"></i> Export
                             </a>
                         </li>
                         <li class="nav-item">

@@ -412,9 +412,13 @@
                 }
 
                 <div class="card">
-                    <div class="card-body">
+                    <div class="card-body d-flex gap-2">
                         <a href="@Url.Action("Index", "Activities")" class="btn btn-outline-secondary">
                             <i class="bi bi-arrow-left"></i> Back to Activities
+                        </a>
+                        <a href="@Url.Action("DownloadActivity", "Export", new { id = Model.Id })"
+                           class="btn btn-outline-primary" title="Download full activity data as JSON">
+                            <i class="bi bi-download"></i> Export JSON
                         </a>
                     </div>
                 </div>
