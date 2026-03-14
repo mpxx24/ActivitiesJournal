@@ -26,38 +26,50 @@
         <h6 class="text-muted text-uppercase small fw-semibold mb-2">This Week</h6>
     </div>
     <div class="col-6 col-md-3">
-        <div class="card bg-dark border-secondary text-center">
-            <div class="card-body py-3">
-                <div class="text-muted small mb-1"><i class="bi bi-bicycle me-1"></i>Ride km</div>
-                <div class="fw-bold fs-4 text-warning">@(((double)(ViewBag.WeekRideKm ?? 0.0)).ToString("0.0"))</div>
-                <div class="text-muted small">@ViewBag.WeekRideCount ride@(ViewBag.WeekRideCount != 1 ? "s" : "")</div>
+        <div class="card stat-card">
+            <div class="card-body py-3 px-4">
+                <div class="stat-icon-label">
+                    <i class="bi bi-bicycle text-warning"></i>
+                    <span class="stat-label">Ride km</span>
+                </div>
+                <div class="stat-value text-warning">@(((double)(ViewBag.WeekRideKm ?? 0.0)).ToString("0.0"))</div>
+                <div class="stat-sub">@ViewBag.WeekRideCount ride@(ViewBag.WeekRideCount != 1 ? "s" : "")</div>
             </div>
         </div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="card bg-dark border-secondary text-center">
-            <div class="card-body py-3">
-                <div class="text-muted small mb-1"><i class="bi bi-person-walking me-1"></i>Walk km</div>
-                <div class="fw-bold fs-4 text-success">@(((double)(ViewBag.WeekWalkKm ?? 0.0)).ToString("0.0"))</div>
-                <div class="text-muted small">@ViewBag.WeekWalkCount walk@(ViewBag.WeekWalkCount != 1 ? "s" : "")</div>
+        <div class="card stat-card">
+            <div class="card-body py-3 px-4">
+                <div class="stat-icon-label">
+                    <i class="bi bi-person-walking text-success"></i>
+                    <span class="stat-label">Walk km</span>
+                </div>
+                <div class="stat-value text-success">@(((double)(ViewBag.WeekWalkKm ?? 0.0)).ToString("0.0"))</div>
+                <div class="stat-sub">@ViewBag.WeekWalkCount walk@(ViewBag.WeekWalkCount != 1 ? "s" : "")</div>
             </div>
         </div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="card bg-dark border-secondary text-center">
-            <div class="card-body py-3">
-                <div class="text-muted small mb-1"><i class="bi bi-fire me-1"></i>Ride Streak</div>
-                <div class="fw-bold fs-4 @(ViewBag.RideStreak > 0 ? "text-orange" : "text-muted")" style="color:@(ViewBag.RideStreak > 0 ? "#fd7e14" : "")">@ViewBag.RideStreak</div>
-                <div class="text-muted small">day@(ViewBag.RideStreak != 1 ? "s" : "")</div>
+        <div class="card stat-card">
+            <div class="card-body py-3 px-4">
+                <div class="stat-icon-label">
+                    <i class="bi bi-fire" style="color: #fd7e14"></i>
+                    <span class="stat-label">Ride Streak</span>
+                </div>
+                <div class="stat-value" style="color: @(ViewBag.RideStreak > 0 ? "#fd7e14" : "var(--muted-color)")">@ViewBag.RideStreak</div>
+                <div class="stat-sub">day@(ViewBag.RideStreak != 1 ? "s" : "")</div>
             </div>
         </div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="card bg-dark border-secondary text-center">
-            <div class="card-body py-3">
-                <div class="text-muted small mb-1"><i class="bi bi-calendar-check me-1"></i>YTD Rides</div>
-                <div class="fw-bold fs-4">@(((double)(ViewBag.YtdRideKm ?? 0.0)).ToString("0"))<span class="fs-6"> km</span></div>
-                <div class="text-muted small">@ViewBag.YtdRideCount activities</div>
+        <div class="card stat-card">
+            <div class="card-body py-3 px-4">
+                <div class="stat-icon-label">
+                    <i class="bi bi-calendar-check text-info"></i>
+                    <span class="stat-label">YTD Rides</span>
+                </div>
+                <div class="stat-value">@(((double)(ViewBag.YtdRideKm ?? 0.0)).ToString("0"))<span style="font-size:1rem;font-weight:500"> km</span></div>
+                <div class="stat-sub">@ViewBag.YtdRideCount activities</div>
             </div>
         </div>
     </div>
@@ -66,8 +78,8 @@
 <!-- Mini sparkline -->
 @if (weeklyKm.Any())
 {
-    <div class="card bg-dark border-secondary mb-4">
-        <div class="card-header border-secondary fw-semibold small">
+    <div class="card mb-4">
+        <div class="card-header fw-semibold small">
             <i class="bi bi-graph-up me-1 text-warning"></i>Weekly distance — last 8 weeks
         </div>
         <div class="card-body py-2">
@@ -77,15 +89,15 @@
 }
 
 <!-- Recent activities -->
-<div class="card bg-dark border-secondary">
-    <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <span class="fw-semibold"><i class="bi bi-list-ul me-1 text-warning"></i>Recent Activities</span>
         <a href="/Activities" class="btn btn-sm btn-outline-secondary">View all</a>
     </div>
     <div class="list-group list-group-flush">
         @if (!recent.Any())
         {
-            <div class="list-group-item bg-dark text-muted text-center py-3">
+            <div class="list-group-item text-muted text-center py-3" style="background:var(--card-bg)">
                 No activities yet. <a href="/Strava/Authorize">Connect Strava</a> to get started.
             </div>
         }
@@ -96,7 +108,7 @@
             string speedOrPace = walk && distKm > 0
                 ? $"{(int)(a.MovingTime / 60.0 / distKm)}:{(int)Math.Round(((a.MovingTime / 60.0 / distKm) - (int)(a.MovingTime / 60.0 / distKm)) * 60):D2}/km"
                 : $"{(a.AverageSpeed * 3.6):0.0} km/h";
-            <a href="/Activities/Details/@a.Id" class="list-group-item list-group-item-action bg-dark border-secondary py-2">
+            <a href="/Activities/Details/@a.Id" class="list-group-item list-group-item-action py-2" style="background:var(--card-bg);border-color:var(--card-border)!important;color:var(--body-color)">
                 <div class="d-flex align-items-center gap-3">
                     <i class="bi @SportIcon(a.SportType) text-warning fs-5" style="min-width:20px"></i>
                     <div class="flex-grow-1 text-truncate">

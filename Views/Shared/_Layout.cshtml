@@ -1,4 +1,4 @@
-@inject IOptions<ActivitiesJournal.Models.StravaConfig> StravaOptions
+@inject Microsoft.Extensions.Options.IOptions<ActivitiesJournal.Models.StravaConfig> StravaOptions
 @inject ActivitiesJournal.Services.IStravaService StravaServiceLayout
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
@@ -8,12 +8,13 @@
         : (DateTime.Now - cacheTs.Value).TotalMinutes < 60 ? $"{(int)(DateTime.Now - cacheTs.Value).TotalMinutes}m ago"
         : $"{(int)(DateTime.Now - cacheTs.Value).TotalHours}h ago";
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
-    bool isExportSection = currentController == "Export";
-    bool isCyclingSection = currentController == "Goals"
-        || (currentController == "Activities" && currentAction is
-            "PersonalRecords" or "MonthComparison" or "DayInHistory" or
-            "Calendar" or "Badges" or "Analysis" or "Fitness" or "Segments" or "Timeline" or "SpeedTrend" or "Histogram" or "NameAnalysis" or "CumulativeDistance" or "WeatherInsights" or "RouteLibrary" or "LongestRide" or "YearComparison" or "ThisTimeLastYear" or "YearInReview" or "ActiveMinutes" or "CadenceTrend");
-    bool isWalkingSection = currentController == "Activities" && currentAction == "WalkAnalytics";
+
+    Func<string, string?, string> NavClass = (ctrl, act) => {
+        bool active = act != null
+            ? currentController == ctrl && currentAction == act
+            : currentController == ctrl;
+        return "sidebar-link" + (active ? " active" : "");
+    };
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -21,6 +22,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - ActivitiesJournal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
@@ -28,220 +32,181 @@
     <link rel="stylesheet" href="~/ActivitiesJournal.styles.css" asp-append-version="true" />
 </head>
 <body class="app-body">
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-dark bg-dark shadow-sm app-navbar">
-            <div class="container-fluid">
-                <a class="navbar-brand fw-semibold" asp-area="" asp-controller="Home" asp-action="Index">
-                    <i class="bi bi-activity me-1 text-warning"></i>Activities Journal
+
+<!-- Mobile top bar (visible only below md breakpoint) -->
+<nav class="app-topbar d-flex d-md-none align-items-center px-3 gap-2">
+    <button class="btn btn-link text-light p-1" type="button"
+            data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-label="Toggle navigation">
+        <i class="bi bi-list fs-4"></i>
+    </button>
+    <a class="text-decoration-none text-light fw-semibold d-flex align-items-center gap-1"
+       asp-controller="Home" asp-action="Index">
+        <i class="bi bi-activity text-warning"></i>Activities Journal
+    </a>
+</nav>
+
+<!-- Layout wrapper: sidebar + content side by side -->
+<div class="d-flex app-wrapper">
+
+    <!-- Sidebar: offcanvas on mobile, inline on md+ -->
+    <div class="offcanvas offcanvas-start offcanvas-md app-sidebar" tabindex="-1" id="appSidebar">
+        <!-- Mobile header (hidden on desktop) -->
+        <div class="offcanvas-header d-md-none border-bottom" style="border-color: rgba(48,54,61,0.8) !important">
+            <span class="fw-semibold text-light">
+                <i class="bi bi-activity me-1 text-warning"></i>Activities Journal
+            </span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+
+        <div class="offcanvas-body d-flex flex-column p-0">
+            <!-- Brand (desktop only) -->
+            <div class="sidebar-brand d-none d-md-flex align-items-center">
+                <a class="text-decoration-none d-flex align-items-center gap-2"
+                   asp-controller="Home" asp-action="Index">
+                    <i class="bi bi-activity text-warning fs-5"></i>
+                    <span class="fw-semibold text-light">Activities Journal</span>
                 </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">
-                                <i class="bi bi-house-door me-1"></i> Home
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Activities" asp-action="Index">
-                                <i class="bi bi-list-ul me-1"></i> Activities
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Activities" asp-action="Summary">
-                                <i class="bi bi-graph-up-arrow me-1"></i> Summary
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(isExportSection ? "active" : "")" asp-area="" asp-controller="Export" asp-action="Index">
-                                <i class="bi bi-download me-1"></i> Export
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Activities" asp-action="Heatmap">
-                                <i class="bi bi-map me-1"></i> Heatmap
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(isWalkingSection ? "active" : "")" asp-area="" asp-controller="Activities" asp-action="WalkAnalytics">
-                                <i class="bi bi-person-walking me-1"></i> Walking
-                            </a>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle @(isCyclingSection ? "active" : "")"
-                               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-bicycle me-1"></i> Cycling
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-dark">
-                                <li><h6 class="dropdown-header text-muted">Performance</h6></li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="Histogram">
-                                        <i class="bi bi-bar-chart-steps me-2"></i>Distribution
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="NameAnalysis">
-                                        <i class="bi bi-chat-quote me-2"></i>Name Analysis
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="SpeedTrend">
-                                        <i class="bi bi-graph-up-arrow me-2"></i>Speed / Pace Trend
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="CadenceTrend">
-                                        <i class="bi bi-arrow-repeat me-2"></i>Cadence Trend
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="PersonalRecords">
-                                        <i class="bi bi-trophy me-2"></i>Records
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="Fitness">
-                                        <i class="bi bi-heart-pulse me-2"></i>Fitness (CTL/ATL)
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="ActiveMinutes">
-                                        <i class="bi bi-stopwatch me-2"></i>Active Minutes
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="WeatherInsights">
-                                        <i class="bi bi-thermometer-sun me-2"></i>Weather Insights
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="Analysis">
-                                        <i class="bi bi-pie-chart me-2"></i>Analysis
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="Segments">
-                                        <i class="bi bi-flag me-2"></i>Segments
-                                    </a>
-                                </li>
-                                <li><hr class="dropdown-divider" /></li>
-                                <li><h6 class="dropdown-header text-muted">History</h6></li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="RouteLibrary">
-                                        <i class="bi bi-signpost-2 me-2"></i>Route Library
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="LongestRide">
-                                        <i class="bi bi-trophy-fill me-2"></i>Longest Ride
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="CumulativeDistance">
-                                        <i class="bi bi-graph-up me-2"></i>Cumulative Distance
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="Timeline">
-                                        <i class="bi bi-bar-chart-line me-2"></i>Timeline
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="YearComparison">
-                                        <i class="bi bi-bar-chart-line me-2"></i>Year vs Year
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="ThisTimeLastYear">
-                                        <i class="bi bi-clock-history me-2"></i>This Time Last Year
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="MonthComparison">
-                                        <i class="bi bi-bar-chart me-2"></i>Month vs Month
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="Calendar">
-                                        <i class="bi bi-calendar3 me-2"></i>Calendar
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="DayInHistory">
-                                        <i class="bi bi-calendar-event me-2"></i>On This Day
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="YearInReview">
-                                        <i class="bi bi-stars me-2"></i>Year in Review
-                                    </a>
-                                </li>
-                                <li><hr class="dropdown-divider" /></li>
-                                <li><h6 class="dropdown-header text-muted">Goals</h6></li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Goals" asp-action="Index">
-                                        <i class="bi bi-bullseye me-2"></i>Goals &amp; Challenges
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-controller="Activities" asp-action="Badges">
-                                        <i class="bi bi-award me-2"></i>Badges
-                                    </a>
-                                </li>
-                            </ul>
-                        </li>
-                        <li class="nav-item ms-sm-auto">
-                            <button id="notif-btn" class="nav-link btn btn-link text-muted" title="Enable activity reminders">
-                                <i class="bi bi-bell"></i>
-                            </button>
-                        </li>
-                        <li class="nav-item">
-                            <button id="theme-toggle" class="nav-link btn btn-link text-muted" title="Toggle light/dark theme">
-                                <i class="bi bi-moon-stars" id="theme-icon"></i>
-                            </button>
-                        </li>
-                        <li class="nav-item d-flex align-items-center">
-                            <form method="post" asp-controller="Strava" asp-action="ClearCache"
-                                  asp-route-returnUrl="@Context.Request.Path">
-                                @Html.AntiForgeryToken()
-                                <button type="submit" class="nav-link btn btn-link text-muted"
-                                        title="Clear cached Strava data and reload from API">
-                                    <i class="bi bi-arrow-clockwise me-1"></i>Reload
-                                </button>
-                            </form>
-                            <span class="text-muted small ms-1" style="font-size:0.7rem;opacity:.6" title="Data last fetched from Strava">@cacheAge</span>
-                        </li>
-                        @if (string.IsNullOrEmpty(StravaOptions.Value.AccessToken))
-                        {
-                            <li class="nav-item ms-sm-auto">
-                                <a class="nav-link text-warning" asp-area="" asp-controller="Strava" asp-action="Authorize">
-                                    <i class="bi bi-link-45deg me-1"></i> Connect Strava
-                                </a>
-                            </li>
-                        }
-                    </ul>
-                </div>
             </div>
-        </nav>
-    </header>
-    <div class="container">
+
+            <!-- Nav links -->
+            <nav class="sidebar-nav flex-grow-1 overflow-y-auto">
+
+                <div class="sidebar-section-label">General</div>
+                <a class="@NavClass("Home", "Index")" asp-controller="Home" asp-action="Index">
+                    <i class="bi bi-house-door"></i>Home
+                </a>
+                <a class="@NavClass("Activities", "Index")" asp-controller="Activities" asp-action="Index">
+                    <i class="bi bi-list-ul"></i>Activities
+                </a>
+                <a class="@NavClass("Activities", "Summary")" asp-controller="Activities" asp-action="Summary">
+                    <i class="bi bi-graph-up-arrow"></i>Summary
+                </a>
+                <a class="@NavClass("Export", null)" asp-controller="Export" asp-action="Index">
+                    <i class="bi bi-download"></i>Export
+                </a>
+
+                <div class="sidebar-section-label">Analytics</div>
+                <a class="@NavClass("Activities", "WalkAnalytics")" asp-controller="Activities" asp-action="WalkAnalytics">
+                    <i class="bi bi-person-walking"></i>Walking
+                </a>
+                <a class="@NavClass("Activities", "Histogram")" asp-controller="Activities" asp-action="Histogram">
+                    <i class="bi bi-bar-chart-steps"></i>Distribution
+                </a>
+                <a class="@NavClass("Activities", "SpeedTrend")" asp-controller="Activities" asp-action="SpeedTrend">
+                    <i class="bi bi-graph-up-arrow"></i>Speed / Pace
+                </a>
+                <a class="@NavClass("Activities", "CadenceTrend")" asp-controller="Activities" asp-action="CadenceTrend">
+                    <i class="bi bi-arrow-repeat"></i>Cadence
+                </a>
+                <a class="@NavClass("Activities", "PersonalRecords")" asp-controller="Activities" asp-action="PersonalRecords">
+                    <i class="bi bi-trophy"></i>Records
+                </a>
+                <a class="@NavClass("Activities", "Fitness")" asp-controller="Activities" asp-action="Fitness">
+                    <i class="bi bi-heart-pulse"></i>Fitness
+                </a>
+                <a class="@NavClass("Activities", "ActiveMinutes")" asp-controller="Activities" asp-action="ActiveMinutes">
+                    <i class="bi bi-stopwatch"></i>Active Minutes
+                </a>
+                <a class="@NavClass("Activities", "WeatherInsights")" asp-controller="Activities" asp-action="WeatherInsights">
+                    <i class="bi bi-thermometer-sun"></i>Weather
+                </a>
+                <a class="@NavClass("Activities", "Analysis")" asp-controller="Activities" asp-action="Analysis">
+                    <i class="bi bi-pie-chart"></i>Analysis
+                </a>
+                <a class="@NavClass("Activities", "Segments")" asp-controller="Activities" asp-action="Segments">
+                    <i class="bi bi-flag"></i>Segments
+                </a>
+                <a class="@NavClass("Activities", "NameAnalysis")" asp-controller="Activities" asp-action="NameAnalysis">
+                    <i class="bi bi-chat-quote"></i>Name Analysis
+                </a>
+
+                <div class="sidebar-section-label">History</div>
+                <a class="@NavClass("Activities", "RouteLibrary")" asp-controller="Activities" asp-action="RouteLibrary">
+                    <i class="bi bi-signpost-2"></i>Route Library
+                </a>
+                <a class="@NavClass("Activities", "LongestRide")" asp-controller="Activities" asp-action="LongestRide">
+                    <i class="bi bi-trophy-fill"></i>Longest Ride
+                </a>
+                <a class="@NavClass("Activities", "CumulativeDistance")" asp-controller="Activities" asp-action="CumulativeDistance">
+                    <i class="bi bi-graph-up"></i>Cumulative Distance
+                </a>
+                <a class="@NavClass("Activities", "Timeline")" asp-controller="Activities" asp-action="Timeline">
+                    <i class="bi bi-bar-chart-line"></i>Timeline
+                </a>
+                <a class="@NavClass("Activities", "YearComparison")" asp-controller="Activities" asp-action="YearComparison">
+                    <i class="bi bi-bar-chart-line"></i>Year vs Year
+                </a>
+                <a class="@NavClass("Activities", "ThisTimeLastYear")" asp-controller="Activities" asp-action="ThisTimeLastYear">
+                    <i class="bi bi-clock-history"></i>This Time Last Year
+                </a>
+                <a class="@NavClass("Activities", "MonthComparison")" asp-controller="Activities" asp-action="MonthComparison">
+                    <i class="bi bi-bar-chart"></i>Month vs Month
+                </a>
+                <a class="@NavClass("Activities", "Calendar")" asp-controller="Activities" asp-action="Calendar">
+                    <i class="bi bi-calendar3"></i>Calendar
+                </a>
+                <a class="@NavClass("Activities", "DayInHistory")" asp-controller="Activities" asp-action="DayInHistory">
+                    <i class="bi bi-calendar-event"></i>On This Day
+                </a>
+                <a class="@NavClass("Activities", "YearInReview")" asp-controller="Activities" asp-action="YearInReview">
+                    <i class="bi bi-stars"></i>Year in Review
+                </a>
+
+                <div class="sidebar-section-label">Goals</div>
+                <a class="@NavClass("Goals", null)" asp-controller="Goals" asp-action="Index">
+                    <i class="bi bi-bullseye"></i>Goals &amp; Challenges
+                </a>
+                <a class="@NavClass("Activities", "Badges")" asp-controller="Activities" asp-action="Badges">
+                    <i class="bi bi-award"></i>Badges
+                </a>
+                <a class="@NavClass("Activities", "Heatmap")" asp-controller="Activities" asp-action="Heatmap">
+                    <i class="bi bi-map"></i>Heatmap
+                </a>
+
+            </nav>
+
+            <!-- Footer utilities -->
+            <div class="sidebar-footer">
+                <button id="notif-btn" class="sidebar-util-btn" title="Enable activity reminders">
+                    <i class="bi bi-bell"></i>
+                </button>
+                <button id="theme-toggle" class="sidebar-util-btn" title="Toggle light/dark theme">
+                    <i class="bi bi-moon-stars" id="theme-icon"></i>
+                </button>
+                <form method="post" asp-controller="Strava" asp-action="ClearCache"
+                      asp-route-returnUrl="@Context.Request.Path" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="sidebar-util-btn" title="Clear cached Strava data and reload from API">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </form>
+                <span class="sidebar-cache-age" title="Data last fetched from Strava">@cacheAge</span>
+                @if (string.IsNullOrEmpty(StravaOptions.Value.AccessToken))
+                {
+                    <a class="sidebar-link text-warning w-100 mt-1" asp-controller="Strava" asp-action="Authorize">
+                        <i class="bi bi-link-45deg"></i>Connect Strava
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="app-content flex-grow-1">
         <main role="main" class="pb-3">
             @RenderBody()
         </main>
+        <footer class="footer text-muted">
+            &copy; 2026 - ActivitiesJournal - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+        </footer>
     </div>
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - ActivitiesJournal - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-        </div>
-    </footer>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
-    @await RenderSectionAsync("Scripts", required: false)
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+<script src="~/js/site.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
