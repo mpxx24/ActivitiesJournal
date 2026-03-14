@@ -360,3 +360,7 @@ set-secrets.sh
 *.secrets
 appsettings.Development.json
 .DS_Store
+
+# Claude
+CLAUDE.md
+docs/*.md
