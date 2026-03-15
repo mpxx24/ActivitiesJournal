@@ -362,5 +362,4 @@ appsettings.Development.json
 .DS_Store
 
 # Claude
-CLAUDE.md
-docs/*.md
+**/CLAUDE.md
