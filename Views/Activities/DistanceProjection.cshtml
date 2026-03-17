@@ -1,0 +1,192 @@
+@model ActivitiesJournal.Models.DistanceProjectionViewModel
+@{
+    ViewData["Title"] = "Distance Projection";
+
+    double vsLastYear = Model.ProjectedTotalKm - Model.LastYearTotalKm;
+    string vsSign = vsLastYear >= 0 ? "+" : "";
+    string vsClass = vsLastYear >= 0 ? "text-success" : "text-danger";
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-graph-up me-2 text-warning"></i>Distance Projection @Model.CurrentYear</h2>
+</div>
+
+<div class="mb-3 d-flex align-items-center gap-2">
+    <a href="?type=Ride" class="btn btn-sm @(Model.ActivityType == "Ride" ? "btn-warning" : "btn-outline-secondary")">
+        <i class="bi bi-bicycle me-1"></i>Rides
+    </a>
+    <a href="?type=Walk" class="btn btn-sm @(Model.ActivityType == "Walk" ? "btn-warning" : "btn-outline-secondary")">
+        <i class="bi bi-person-walking me-1"></i>Walks
+    </a>
+    <a href="?type=All" class="btn btn-sm @(Model.ActivityType == "All" ? "btn-warning" : "btn-outline-secondary")">
+        <i class="bi bi-collection me-1"></i>All
+    </a>
+</div>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger">@ViewBag.Error</div>
+}
+else if (!Model.Actual.Any())
+{
+    <div class="alert alert-info">No @Model.ActivityTypeLabel found for @Model.CurrentYear.</div>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="card text-center h-100">
+                <div class="card-body py-3">
+                    <div class="fs-4 fw-bold text-warning">@Model.CurrentTotalKm km</div>
+                    <div class="small text-muted">So far in @Model.CurrentYear</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center h-100">
+                <div class="card-body py-3">
+                    <div class="fs-4 fw-bold">@Model.ProjectedTotalKm km</div>
+                    <div class="small text-muted">Projected year-end</div>
+                    <div class="small text-muted">@Model.LowerProjectedKm – @Model.UpperProjectedKm km</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center h-100">
+                <div class="card-body py-3">
+                    <div class="fs-4 fw-bold @vsClass">@vsSign@(Math.Round(vsLastYear, 0)) km</div>
+                    <div class="small text-muted">vs @(Model.CurrentYear - 1) (@Model.LastYearTotalKm km)</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center h-100">
+                <div class="card-body py-3">
+                    <div class="fs-4 fw-bold">@Model.AvgDailyKm km</div>
+                    <div class="small text-muted">Avg/day (last @Model.ProjectionWindowDays days)</div>
+                    <div class="small text-muted">@Model.DaysRemaining days remaining</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header fw-semibold">
+            <i class="bi bi-graph-up me-2"></i>Cumulative distance — actual &amp; projected
+        </div>
+        <div class="card-body">
+            <canvas id="projectionChart" height="90"></canvas>
+        </div>
+    </div>
+
+    <div class="text-muted small">
+        <i class="bi bi-info-circle me-1"></i>
+        Projection uses your average daily distance over the last @Model.ProjectionWindowDays days
+        (@Model.AvgDailyKm km/day). The shaded band shows ±1 standard deviation — uncertainty widens further from today.
+    </div>
+}
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+(function () {
+    const raw = {
+        actual:     @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Actual)),
+        projection: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Projection)),
+        upper:      @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.UpperBand)),
+        lower:      @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.LowerBand)),
+        lastYear:   @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.LastYear)),
+    };
+
+    const toXY = arr => arr.map(p => ({ x: p.Date, y: p.Km }));
+
+    new Chart(document.getElementById('projectionChart'), {
+        type: 'line',
+        data: {
+            datasets: [
+                {
+                    label: '@(Model.CurrentYear - 1) actual',
+                    data: toXY(raw.lastYear),
+                    borderColor: 'rgba(173,181,189,0.4)',
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.3,
+                },
+                {
+                    label: 'Upper bound',
+                    data: toXY(raw.upper),
+                    borderColor: 'rgba(249,115,22,0.25)',
+                    borderDash: [4, 4],
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    fill: '+1',
+                    backgroundColor: 'rgba(249,115,22,0.08)',
+                    tension: 0.3,
+                },
+                {
+                    label: 'Lower bound',
+                    data: toXY(raw.lower),
+                    borderColor: 'rgba(249,115,22,0.25)',
+                    borderDash: [4, 4],
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.3,
+                },
+                {
+                    label: 'Projection',
+                    data: toXY(raw.projection),
+                    borderColor: '#f97316',
+                    borderDash: [6, 3],
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.3,
+                },
+                {
+                    label: '@Model.CurrentYear actual',
+                    data: toXY(raw.actual),
+                    borderColor: '#ffc107',
+                    borderWidth: 2.5,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.3,
+                },
+            ]
+        },
+        options: {
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#adb5bd',
+                        filter: item => item.text !== 'Upper bound' && item.text !== 'Lower bound',
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} km`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: { unit: 'month', tooltipFormat: 'd MMM yyyy' },
+                    ticks: { color: '#adb5bd' },
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    min: '@(new DateTime(Model.CurrentYear, 1, 1).ToString("yyyy-MM-dd"))',
+                    max: '@(new DateTime(Model.CurrentYear, 12, 31).ToString("yyyy-MM-dd"))',
+                },
+                y: {
+                    ticks: { color: '#adb5bd', callback: v => v + ' km' },
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                }
+            }
+        }
+    });
+})();
+</script>
+}

@@ -2003,4 +2003,110 @@ public class ActivitiesController : Controller
             return View(new List<Models.StravaActivity>());
         }
     }
+
+    public async Task<IActionResult> DistanceProjection(string? type = null)
+    {
+        try
+        {
+            type ??= "Ride";
+            var all = await _stravaService.GetAllActivitiesAsync();
+            var activities = FilterByActivityType(all, type);
+
+            var today = DateTime.Today;
+            int currentYear = today.Year;
+            int lastYearNum = currentYear - 1;
+            var yearStart = new DateTime(currentYear, 1, 1);
+            var yearEnd = new DateTime(currentYear, 12, 31);
+            int daysRemaining = (yearEnd - today).Days;
+
+            // Build day-by-day actual cumulative for current year
+            var currentYearActs = activities.Where(a => a.StartDateLocal.Year == currentYear).ToList();
+            var byDate = currentYearActs.ToLookup(a => a.StartDateLocal.Date);
+
+            var actual = new List<Models.DistanceProjectionPoint>();
+            double cum = 0;
+            for (var d = yearStart; d <= today; d = d.AddDays(1))
+            {
+                cum += byDate[d].Sum(a => a.Distance / 1000.0);
+                actual.Add(new() { Date = d.ToString("yyyy-MM-dd"), Km = Math.Round(cum, 1) });
+            }
+            double currentTotalKm = cum;
+
+            // Compute average and stddev of daily km over the last 30 days
+            const int windowDays = 30;
+            var windowStart = today.AddDays(-windowDays + 1);
+            var dailyKmsInWindow = new List<double>();
+            for (var d = windowStart; d <= today; d = d.AddDays(1))
+                dailyKmsInWindow.Add(byDate[d].Sum(a => a.Distance / 1000.0));
+
+            double avgDaily = dailyKmsInWindow.Count > 0 ? dailyKmsInWindow.Average() : 0;
+            double stddev = 0;
+            if (dailyKmsInWindow.Count > 1)
+            {
+                double variance = dailyKmsInWindow.Sum(x => Math.Pow(x - avgDaily, 2)) / dailyKmsInWindow.Count;
+                stddev = Math.Sqrt(variance);
+            }
+
+            // Project from today to Dec 31 (today is the anchor point for all three lines)
+            var projection = new List<Models.DistanceProjectionPoint>();
+            var upperBand = new List<Models.DistanceProjectionPoint>();
+            var lowerBand = new List<Models.DistanceProjectionPoint>();
+
+            projection.Add(new() { Date = today.ToString("yyyy-MM-dd"), Km = Math.Round(currentTotalKm, 1) });
+            upperBand.Add(new() { Date = today.ToString("yyyy-MM-dd"), Km = Math.Round(currentTotalKm, 1) });
+            lowerBand.Add(new() { Date = today.ToString("yyyy-MM-dd"), Km = Math.Round(currentTotalKm, 1) });
+
+            double projCum = currentTotalKm, upperCum = currentTotalKm, lowerCum = currentTotalKm;
+            for (var d = today.AddDays(1); d <= yearEnd; d = d.AddDays(1))
+            {
+                projCum += avgDaily;
+                upperCum += avgDaily + stddev;
+                lowerCum += Math.Max(0, avgDaily - stddev);
+                projection.Add(new() { Date = d.ToString("yyyy-MM-dd"), Km = Math.Round(projCum, 1) });
+                upperBand.Add(new() { Date = d.ToString("yyyy-MM-dd"), Km = Math.Round(upperCum, 1) });
+                lowerBand.Add(new() { Date = d.ToString("yyyy-MM-dd"), Km = Math.Round(lowerCum, 1) });
+            }
+
+            // Build last year's cumulative, mapped to current year dates for overlay
+            var lastYearActs = activities.Where(a => a.StartDateLocal.Year == lastYearNum).ToList();
+            var lastYearByDate = lastYearActs.ToLookup(a => a.StartDateLocal.Date);
+            var lastYear = new List<Models.DistanceProjectionPoint>();
+            double lastCum = 0;
+            for (var d = new DateTime(lastYearNum, 1, 1); d.Year == lastYearNum; d = d.AddDays(1))
+            {
+                lastCum += lastYearByDate[d].Sum(a => a.Distance / 1000.0);
+                var equiv = yearStart.AddDays(d.DayOfYear - 1);
+                if (equiv <= yearEnd)
+                    lastYear.Add(new() { Date = equiv.ToString("yyyy-MM-dd"), Km = Math.Round(lastCum, 1) });
+            }
+
+            var vm = new Models.DistanceProjectionViewModel
+            {
+                ActivityType = type,
+                ActivityTypeLabel = ActivityTypeLabel(type),
+                CurrentYear = currentYear,
+                Actual = actual,
+                Projection = projection,
+                UpperBand = upperBand,
+                LowerBand = lowerBand,
+                LastYear = lastYear,
+                CurrentTotalKm = Math.Round(currentTotalKm, 1),
+                ProjectedTotalKm = Math.Round(projCum, 1),
+                UpperProjectedKm = Math.Round(upperCum, 1),
+                LowerProjectedKm = Math.Round(lowerCum, 1),
+                LastYearTotalKm = Math.Round(lastCum, 1),
+                AvgDailyKm = Math.Round(avgDaily, 2),
+                DaysRemaining = daysRemaining,
+                ProjectionWindowDays = windowDays,
+            };
+
+            return View(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading distance projection");
+            ViewBag.Error = "Failed to load distance projection data.";
+            return View(new Models.DistanceProjectionViewModel());
+        }
+    }
 }
