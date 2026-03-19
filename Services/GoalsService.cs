@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Models;
 using Azure.Identity;
 using Azure.Storage.Blobs;
@@ -13,7 +14,7 @@ public class GoalsService : IGoalsService
     private readonly ILogger<GoalsService> _logger;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    public GoalsService(IWebHostEnvironment env, IOptions<StorageSettings> storageOptions, ILogger<GoalsService> logger)
+    public GoalsService(IWebHostEnvironment env, IOptions<StorageOptions> storageOptions, ILogger<GoalsService> logger)
     {
         _logger = logger;
         _filePath = Path.Combine(env.ContentRootPath, "App_Data", "goals.json");

@@ -1,4 +1,4 @@
-using ActivitiesJournal.Models;
+using ActivitiesJournal.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -6,10 +6,10 @@ namespace ActivitiesJournal.Controllers;
 
 public class ConfigController : Controller
 {
-    private readonly StravaConfig _config;
+    private readonly StravaOptions _config;
     private readonly ILogger<ConfigController> _logger;
 
-    public ConfigController(IOptions<StravaConfig> config, ILogger<ConfigController> logger)
+    public ConfigController(IOptions<StravaOptions> config, ILogger<ConfigController> logger)
     {
         _config = config.Value;
         _logger = logger;

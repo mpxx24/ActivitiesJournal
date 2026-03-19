@@ -1,6 +1,6 @@
-namespace ActivitiesJournal.Models;
+namespace ActivitiesJournal.Configuration;
 
-public class StravaConfig
+public class StravaOptions
 {
     public string ClientId { get; set; } = string.Empty;
     public string ClientSecret { get; set; } = string.Empty;

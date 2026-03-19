@@ -1,4 +1,4 @@
-@inject Microsoft.Extensions.Options.IOptions<ActivitiesJournal.Models.StravaConfig> StravaOptions
+@inject Microsoft.Extensions.Options.IOptions<ActivitiesJournal.Configuration.StravaOptions> StravaOptions
 @inject ActivitiesJournal.Services.IStravaService StravaServiceLayout
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString();

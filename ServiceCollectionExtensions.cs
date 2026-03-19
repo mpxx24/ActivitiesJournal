@@ -1,4 +1,4 @@
-using ActivitiesJournal.Models;
+using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Services;
 
 namespace ActivitiesJournal;
@@ -14,8 +14,8 @@ public static class ServiceCollectionExtensions
         if (!string.IsNullOrEmpty(appInsightsConnStr))
             services.AddApplicationInsightsTelemetry();
 
-        services.Configure<StravaConfig>(configuration.GetSection("Strava"));
-        services.Configure<StorageSettings>(configuration.GetSection("Storage"));
+        services.Configure<StravaOptions>(configuration.GetSection("Strava"));
+        services.Configure<StorageOptions>(configuration.GetSection("Storage"));
 
         services.AddHttpClient<IStravaService, StravaService>();
         services.AddHttpClient("weather", c =>

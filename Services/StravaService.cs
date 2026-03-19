@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Models;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
@@ -8,7 +9,7 @@ namespace ActivitiesJournal.Services;
 
 public class StravaService : IStravaService
 {
-    private readonly StravaConfig _config;
+    private readonly StravaOptions _config;
     private readonly HttpClient _httpClient;
     private readonly IMemoryCache _cache;
     private readonly ILogger<StravaService> _logger;
@@ -25,7 +26,7 @@ public class StravaService : IStravaService
     private record SegmentDetailResponse([property: System.Text.Json.Serialization.JsonPropertyName("map")] SegmentMapDetail? Map);
     private record SegmentMapDetail([property: System.Text.Json.Serialization.JsonPropertyName("polyline")] string? Polyline);
 
-    public StravaService(IOptions<StravaConfig> config, HttpClient httpClient, IMemoryCache cache, ILogger<StravaService> logger)
+    public StravaService(IOptions<StravaOptions> config, HttpClient httpClient, IMemoryCache cache, ILogger<StravaService> logger)
     {
         _config = config.Value;
         _httpClient = httpClient;
