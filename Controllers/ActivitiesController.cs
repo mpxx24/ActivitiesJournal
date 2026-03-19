@@ -35,8 +35,8 @@ public class ActivitiesController : Controller
 
             if (!string.IsNullOrWhiteSpace(sport))
                 filtered = sport switch {
-                    "Ride" => filtered.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide"),
-                    "Walk" => filtered.Where(a => a.SportType is "Walk" or "Hike" or "VirtualWalk"),
+                    "Ride" => filtered.Where(a => SportTypes.IsRide(a.SportType)),
+                    "Walk" => filtered.Where(a => SportTypes.IsWalk(a.SportType)),
                     _ => filtered.Where(a => a.SportType == sport)
                 };
 
@@ -452,7 +452,7 @@ public class ActivitiesController : Controller
 
             if (type == "Walk")
             {
-                var walks = all.Where(a => a.SportType is "Walk" or "Hike" or "VirtualWalk")
+                var walks = all.Where(a => SportTypes.IsWalk(a.SportType))
                                .OrderBy(a => a.StartDateLocal).ToList();
 
                 double wDistKm = walks.Sum(a => a.Distance) / 1000.0;
@@ -514,7 +514,7 @@ public class ActivitiesController : Controller
                 return View(new Models.BadgesViewModel { Badges = walkBadges });
             }
 
-            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide")
+            var rides = all.Where(a => SportTypes.IsRide(a.SportType))
                            .OrderBy(a => a.StartDateLocal).ToList();
 
             double totalDistKm = rides.Sum(a => a.Distance) / 1000.0;
@@ -590,19 +590,11 @@ public class ActivitiesController : Controller
         }
     }
 
-    private static List<Models.StravaActivity> FilterByActivityType(List<Models.StravaActivity> all, string type) => type switch
-    {
-        "Walk" => all.Where(a => a.SportType is "Walk" or "Hike" or "VirtualWalk").ToList(),
-        "All"  => all,
-        _      => all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList(),
-    };
+    private static List<Models.StravaActivity> FilterByActivityType(List<Models.StravaActivity> all, string type)
+        => SportTypes.FilterByType(all, type);
 
-    private static string ActivityTypeLabel(string type) => type switch
-    {
-        "Walk" => "Walks & Hikes",
-        "All"  => "All Activities",
-        _      => "Rides",
-    };
+    private static string ActivityTypeLabel(string type)
+        => SportTypes.TypeLabel(type);
 
     private static int ComputeLongestStreak(List<DateTime> sortedDates)
     {
@@ -933,7 +925,7 @@ public class ActivitiesController : Controller
         try
         {
             var all = await _stravaService.GetAllActivitiesAsync();
-            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide")
+            var rides = all.Where(a => SportTypes.IsRide(a.SportType))
                            .OrderByDescending(a => a.StartDateLocal).ToList();
 
             int fetchCount = Math.Min(count, rides.Count);
@@ -1058,7 +1050,7 @@ public class ActivitiesController : Controller
         try
         {
             var all = await _stravaService.GetAllActivitiesAsync();
-            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+            var rides = all.Where(a => SportTypes.IsRide(a.SportType)).ToList();
 
             // Build a daily load map.
             // Training load proxy: (distance_km * avg_speed_factor) scaled to roughly 0–100 TSS equivalent.
@@ -1138,7 +1130,7 @@ public class ActivitiesController : Controller
         try
         {
             var all = await _stravaService.GetAllActivitiesAsync();
-            var rides = all.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+            var rides = all.Where(a => SportTypes.IsRide(a.SportType)).ToList();
 
             var availableYears = rides.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
             int selectedYear = year ?? DateTime.Now.Year;
@@ -1533,7 +1525,7 @@ public class ActivitiesController : Controller
         try
         {
             var all = await _stravaService.GetAllActivitiesAsync();
-            var walks = all.Where(a => a.SportType is "Walk" or "Hike" or "VirtualWalk").ToList();
+            var walks = all.Where(a => SportTypes.IsWalk(a.SportType)).ToList();
 
             var availableYears = walks.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
             int selectedYear = year ?? DateTime.Now.Year;
@@ -1629,7 +1621,7 @@ public class ActivitiesController : Controller
         {
             var all = await _stravaService.GetAllActivitiesAsync();
             var rides = all
-                .Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide")
+                .Where(a => SportTypes.IsRide(a.SportType))
                 .Where(a => a.AverageCadence.HasValue && a.AverageCadence > 0)
                 .OrderBy(a => a.StartDateLocal)
                 .ToList();
@@ -1704,9 +1696,9 @@ public class ActivitiesController : Controller
                 var weekStart = today.AddDays(-w * 7 - (int)today.DayOfWeek + (today.DayOfWeek == DayOfWeek.Sunday ? -6 : 1));
                 var weekEnd = weekStart.AddDays(6);
                 var acts = all.Where(a => a.StartDateLocal.Date >= weekStart && a.StartDateLocal.Date <= weekEnd).ToList();
-                int rideMin = acts.Where(a => a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").Sum(a => a.MovingTime / 60);
-                int walkMin = acts.Where(a => a.SportType is "Walk" or "Hike" or "VirtualWalk").Sum(a => a.MovingTime / 60);
-                int otherMin = acts.Where(a => a.SportType is not ("Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide" or "Walk" or "Hike" or "VirtualWalk")).Sum(a => a.MovingTime / 60);
+                int rideMin = acts.Where(a => SportTypes.IsRide(a.SportType)).Sum(a => a.MovingTime / 60);
+                int walkMin = acts.Where(a => SportTypes.IsWalk(a.SportType)).Sum(a => a.MovingTime / 60);
+                int otherMin = acts.Where(a => !SportTypes.IsRide(a.SportType) && !SportTypes.IsWalk(a.SportType)).Sum(a => a.MovingTime / 60);
                 return new { WeekStart = weekStart, Label = weekStart.ToString("MMM d"), RideMin = rideMin, WalkMin = walkMin, OtherMin = otherMin, TotalMin = rideMin + walkMin + otherMin };
             }).Reverse().ToList();
 
@@ -1745,9 +1737,9 @@ public class ActivitiesController : Controller
             var availableYears = all.Select(a => a.StartDateLocal.Year).Distinct().OrderDescending().ToList();
 
             var rides = all.Where(a => a.StartDateLocal.Year == selectedYear &&
-                a.SportType is "Ride" or "VirtualRide" or "GravelRide" or "MountainBikeRide").ToList();
+                SportTypes.IsRide(a.SportType)).ToList();
             var walks = all.Where(a => a.StartDateLocal.Year == selectedYear &&
-                a.SportType is "Walk" or "Hike" or "VirtualWalk").ToList();
+                SportTypes.IsWalk(a.SportType)).ToList();
             var allYear = all.Where(a => a.StartDateLocal.Year == selectedYear).ToList();
 
             // Best rides

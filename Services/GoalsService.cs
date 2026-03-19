@@ -2,21 +2,24 @@ using System.Text.Json;
 using ActivitiesJournal.Models;
 using Azure.Identity;
 using Azure.Storage.Blobs;
+using Microsoft.Extensions.Options;
 
 namespace ActivitiesJournal.Services;
 
-public class GoalsService
+public class GoalsService : IGoalsService
 {
     private readonly string _filePath;
     private readonly BlobClient? _blobClient;
-    private static readonly JsonSerializerOptions _json = new() { WriteIndented = true };
+    private readonly ILogger<GoalsService> _logger;
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    public GoalsService(IWebHostEnvironment env, IConfiguration config)
+    public GoalsService(IWebHostEnvironment env, IOptions<StorageSettings> storageOptions, ILogger<GoalsService> logger)
     {
+        _logger = logger;
         _filePath = Path.Combine(env.ContentRootPath, "App_Data", "goals.json");
         Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
 
-        var blobEndpoint = config["Storage:BlobEndpoint"];
+        var blobEndpoint = storageOptions.Value.BlobEndpoint;
         if (!string.IsNullOrEmpty(blobEndpoint))
         {
             var containerClient = new BlobContainerClient(
@@ -27,43 +30,52 @@ public class GoalsService
         }
     }
 
-    public GoalsData Load()
+    public async Task<GoalsData> LoadAsync()
     {
         if (_blobClient != null)
         {
             try
             {
-                var response = _blobClient.DownloadContent();
-                return JsonSerializer.Deserialize<GoalsData>(response.Value.Content.ToString(), _json) ?? SeedDefaults();
+                var response = await _blobClient.DownloadContentAsync();
+                return JsonSerializer.Deserialize<GoalsData>(response.Value.Content.ToString(), JsonOptions)
+                    ?? SeedDefaults();
             }
             catch (Azure.RequestFailedException ex) when (ex.Status == 404)
             {
                 return SeedDefaults();
             }
-            catch { return SeedDefaults(); }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load goals from blob storage, returning defaults");
+                return SeedDefaults();
+            }
         }
 
         if (!File.Exists(_filePath)) return SeedDefaults();
         try
         {
-            var text = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<GoalsData>(text, _json) ?? SeedDefaults();
+            var text = await File.ReadAllTextAsync(_filePath);
+            return JsonSerializer.Deserialize<GoalsData>(text, JsonOptions) ?? SeedDefaults();
         }
-        catch { return SeedDefaults(); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load goals from file, returning defaults");
+            return SeedDefaults();
+        }
     }
 
-    public void Save(GoalsData data)
+    public async Task SaveAsync(GoalsData data)
     {
-        var json = JsonSerializer.Serialize(data, _json);
+        var json = JsonSerializer.Serialize(data, JsonOptions);
 
         if (_blobClient != null)
         {
             using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
-            _blobClient.Upload(stream, overwrite: true);
+            await _blobClient.UploadAsync(stream, overwrite: true);
             return;
         }
 
-        File.WriteAllText(_filePath, json);
+        await File.WriteAllTextAsync(_filePath, json);
     }
 
     private static GoalsData SeedDefaults()
