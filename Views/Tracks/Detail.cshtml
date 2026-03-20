@@ -1,0 +1,107 @@
+@model ActivitiesJournal.Models.TrackSummary
+@using ActivitiesJournal.Models
+@{
+    ViewData["Title"] = $"{Model.ActivityType} — {Model.StartedAt.ToLocalTime():d MMM yyyy}";
+
+    string ActivityIcon(ActivityType t) => t switch {
+        ActivityType.Ride     => "bi-bicycle",
+        ActivityType.Walk     => "bi-person-walking",
+        ActivityType.Football => "bi-dribbble",
+        _                     => "bi-geo-alt"
+    };
+
+    string FormatDuration(TimeSpan d) =>
+        d.TotalHours >= 1
+            ? $"{(int)d.TotalHours}h {d.Minutes:D2}m"
+            : $"{d.Minutes}m {d.Seconds:D2}s";
+
+    double avgSpeedKmh = Model.Duration.TotalHours > 0
+        ? Model.DistanceKm / Model.Duration.TotalHours
+        : 0;
+
+    double avgPaceMinKm = Model.DistanceKm > 0
+        ? Model.Duration.TotalMinutes / Model.DistanceKm
+        : 0;
+
+    bool isPace = Model.ActivityType is ActivityType.Walk or ActivityType.Football;
+
+    string SpeedOrPace() {
+        if (isPace && avgPaceMinKm > 0) {
+            int m = (int)avgPaceMinKm;
+            int s = (int)Math.Round((avgPaceMinKm - m) * 60);
+            return $"{m}:{s:D2} /km";
+        }
+        return avgSpeedKmh > 0 ? $"{avgSpeedKmh:0.0} km/h" : "—";
+    }
+}
+
+<div class="d-flex align-items-center gap-2 mt-3 mb-3">
+    <a asp-controller="Tracks" asp-action="Index" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h2 class="mb-0">
+        <i class="bi @ActivityIcon(Model.ActivityType) me-2 text-warning"></i>
+        @Model.ActivityType &mdash; @Model.StartedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")
+    </h2>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center p-3">
+            <div class="fw-bold fs-4">@Model.DistanceKm.ToString("0.00") km</div>
+            <div class="small text-muted">Distance</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center p-3">
+            <div class="fw-bold fs-4">@FormatDuration(Model.Duration)</div>
+            <div class="small text-muted">Duration</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center p-3">
+            <div class="fw-bold fs-4">@SpeedOrPace()</div>
+            <div class="small text-muted">@(isPace ? "Avg pace" : "Avg speed")</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center p-3">
+            <div class="fw-bold fs-4">@Model.PointCount</div>
+            <div class="small text-muted">GPS points</div>
+        </div>
+    </div>
+</div>
+
+<div id="track-map" style="height: 480px; border-radius: 8px; background: #1a1a2e;"></div>
+
+@section Scripts {
+<script>
+    const map = L.map('track-map');
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19
+    }).addTo(map);
+
+    fetch('/Tracks/Points/@Model.Id')
+        .then(r => r.json())
+        .then(points => {
+            if (!points || points.length === 0) {
+                map.setView([51.505, -0.09], 13);
+                return;
+            }
+
+            const latlngs = points.map(p => [p.lat, p.lon]);
+
+            const polyline = L.polyline(latlngs, { color: '#0d6efd', weight: 4, opacity: 0.85 }).addTo(map);
+            map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+
+            L.circleMarker(latlngs[0], { radius: 8, color: '#198754', fillColor: '#198754', fillOpacity: 1 })
+                .addTo(map).bindPopup('Start');
+
+            L.circleMarker(latlngs[latlngs.length - 1], { radius: 8, color: '#dc3545', fillColor: '#dc3545', fillOpacity: 1 })
+                .addTo(map).bindPopup('Finish');
+        })
+        .catch(() => map.setView([51.505, -0.09], 13));
+</script>
+}

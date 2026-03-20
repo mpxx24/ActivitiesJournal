@@ -1,16 +1,26 @@
+using System.Security.Claims;
+using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace ActivitiesJournal.Controllers;
 
 public class StravaController : Controller
 {
     private readonly IStravaService _stravaService;
+    private readonly TrackOwnerOptions _ownerOptions;
     private readonly ILogger<StravaController> _logger;
 
-    public StravaController(IStravaService stravaService, ILogger<StravaController> logger)
+    public StravaController(
+        IStravaService stravaService,
+        IOptions<TrackOwnerOptions> ownerOptions,
+        ILogger<StravaController> logger)
     {
         _stravaService = stravaService;
+        _ownerOptions = ownerOptions.Value;
         _logger = logger;
     }
 
@@ -38,10 +48,19 @@ public class StravaController : Controller
 
         try
         {
-            // Exchange authorization code for tokens and update Strava configuration in memory
-            await _stravaService.ExchangeCodeForTokenAsync(code);
+            var athleteId = await _stravaService.ExchangeCodeForTokenAsync(code);
 
-            // After successful exchange, redirect to activities list
+            if (_ownerOptions.OwnerAthleteId != 0 && athleteId == _ownerOptions.OwnerAthleteId)
+            {
+                var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, athleteId.ToString()) };
+                var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                await HttpContext.SignInAsync(
+                    CookieAuthenticationDefaults.AuthenticationScheme,
+                    new ClaimsPrincipal(identity),
+                    new AuthenticationProperties { IsPersistent = true });
+                _logger.LogInformation("Owner signed in via Strava OAuth. AthleteId: {AthleteId}", athleteId);
+            }
+
             return RedirectToAction("Index", "Activities");
         }
         catch (Exception ex)

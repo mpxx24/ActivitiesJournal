@@ -1,5 +1,6 @@
 using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 namespace ActivitiesJournal;
 
@@ -16,6 +17,16 @@ public static class ServiceCollectionExtensions
 
         services.Configure<StravaOptions>(configuration.GetSection("Strava"));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
+        services.Configure<TrackOwnerOptions>(configuration.GetSection("TrackOwner"));
+
+        services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(options =>
+            {
+                options.LoginPath = "/";
+                options.AccessDeniedPath = "/";
+                options.ExpireTimeSpan = TimeSpan.FromDays(30);
+                options.SlidingExpiration = true;
+            });
 
         services.AddHttpClient<IStravaService, StravaService>();
         services.AddHttpClient("weather", c =>
@@ -27,6 +38,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGoalsService, GoalsService>();
         services.AddScoped<IGoalsAnalyticsService, GoalsAnalyticsService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddSingleton<ITrackStorageService, TrackStorageService>();
+        services.AddSingleton<ITrackParserService, TrackParserService>();
 
         return services;
     }

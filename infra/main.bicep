@@ -130,6 +130,14 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
           name: 'Storage__BlobEndpoint'
           value: storageAccount.properties.primaryEndpoints.blob
         }
+        {
+          name: 'TrackOwner__OwnerAthleteId'
+          value: '@Microsoft.KeyVault(VaultName=${kvName};SecretName=TrackOwner--OwnerAthleteId)'
+        }
+        {
+          name: 'TrackOwner__UploadApiKey'
+          value: '@Microsoft.KeyVault(VaultName=${kvName};SecretName=TrackOwner--UploadApiKey)'
+        }
       ]
     }
   }

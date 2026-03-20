@@ -278,7 +278,7 @@ public class StravaService : IStravaService
         }
     }
 
-    public async Task ExchangeCodeForTokenAsync(string code)
+    public async Task<long> ExchangeCodeForTokenAsync(string code)
     {
         try
         {
@@ -319,7 +319,15 @@ public class StravaService : IStravaService
                 _config.RefreshToken = newRefreshToken;
             }
 
-            _logger.LogInformation("Successfully exchanged authorization code for access token.");
+            long athleteId = 0;
+            if (tokenResponse.TryGetProperty("athlete", out var athlete) &&
+                athlete.TryGetProperty("id", out var idProp))
+            {
+                athleteId = idProp.GetInt64();
+            }
+
+            _logger.LogInformation("Successfully exchanged authorization code for access token. AthleteId: {AthleteId}", athleteId);
+            return athleteId;
         }
         catch (Exception ex)
         {

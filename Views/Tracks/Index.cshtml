@@ -1,0 +1,64 @@
+@model IReadOnlyList<ActivitiesJournal.Models.TrackSummary>
+@using ActivitiesJournal.Models
+@{
+    ViewData["Title"] = "My Tracks";
+
+    string ActivityIcon(ActivityType t) => t switch {
+        ActivityType.Ride     => "bi-bicycle",
+        ActivityType.Walk     => "bi-person-walking",
+        ActivityType.Football => "bi-dribbble",
+        _                     => "bi-geo-alt"
+    };
+
+    string FormatDuration(TimeSpan d) =>
+        d.TotalHours >= 1
+            ? $"{(int)d.TotalHours}h {d.Minutes:D2}m"
+            : $"{d.Minutes}m {d.Seconds:D2}s";
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-geo-alt me-2 text-warning"></i>My Tracks</h2>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">
+        No tracks uploaded yet. Record an activity with the GPS app and it will appear here.
+    </div>
+}
+else
+{
+    <table class="table table-dark table-hover table-sm align-middle">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th class="text-end">Distance</th>
+                <th class="text-end">Duration</th>
+                <th class="text-end">Points</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var track in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@track.StartedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")</td>
+                    <td>
+                        <i class="bi @ActivityIcon(track.ActivityType) me-1"></i>
+                        @track.ActivityType
+                    </td>
+                    <td class="text-end fw-semibold">@track.DistanceKm.ToString("0.00") km</td>
+                    <td class="text-end">@FormatDuration(track.Duration)</td>
+                    <td class="text-end text-muted small">@track.PointCount</td>
+                    <td class="text-end">
+                        <a asp-controller="Tracks" asp-action="Detail" asp-route-id="@track.Id"
+                           class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-map me-1"></i>View
+                        </a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

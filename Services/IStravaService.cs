@@ -8,7 +8,7 @@ public interface IStravaService
     Task<List<StravaActivity>> GetAllActivitiesAsync();
     Task<StravaActivity?> GetActivityByIdAsync(long activityId);
     Task<string> RefreshAccessTokenAsync();
-    Task ExchangeCodeForTokenAsync(string code);
+    Task<long> ExchangeCodeForTokenAsync(string code);
     string GetAuthorizationUrl();
     void InvalidateCache();
     DateTime? GetCacheTimestamp();
