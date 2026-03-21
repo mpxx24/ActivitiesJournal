@@ -32,30 +32,6 @@ public class StravaService : IStravaService
         _httpClient = httpClient;
         _cache = cache;
         _logger = logger;
-        
-        // Log configuration status for debugging
-        _logger.LogInformation("Strava Configuration Status:");
-        _logger.LogInformation("  ClientId: {HasClientId}", !string.IsNullOrEmpty(_config.ClientId) ? "Set" : "NOT SET");
-        _logger.LogInformation("  ClientSecret: {HasSecret}", !string.IsNullOrEmpty(_config.ClientSecret) ? "Set" : "NOT SET");
-        _logger.LogInformation("  AccessToken: {HasToken}", !string.IsNullOrEmpty(_config.AccessToken) ? "Set" : "NOT SET");
-        _logger.LogInformation("  RefreshToken: {HasRefresh}", !string.IsNullOrEmpty(_config.RefreshToken) ? "Set" : "NOT SET");
-        _logger.LogInformation("  BaseUrl: {BaseUrl}", _config.BaseUrl);
-        
-        // Ensure BaseUrl ends with a slash for proper path combination
-        var baseUrl = _config.BaseUrl.TrimEnd('/');
-        _httpClient.BaseAddress = new Uri(baseUrl + "/");
-        
-        if (string.IsNullOrEmpty(_config.AccessToken))
-        {
-            _logger.LogWarning("⚠️  Strava AccessToken is not configured!");
-            _logger.LogWarning("   Set environment variables: Strava__AccessToken, Strava__ClientId, Strava__ClientSecret, Strava__RefreshToken");
-        }
-        else
-        {
-            _httpClient.DefaultRequestHeaders.Authorization = 
-                new AuthenticationHeaderValue("Bearer", _config.AccessToken);
-            _logger.LogInformation("✓ Access token configured, ready to make API calls");
-        }
     }
 
     public void InvalidateCache()

@@ -18,15 +18,13 @@ public class GoalsService : IGoalsService
     {
         _logger = logger;
         _filePath = Path.Combine(env.ContentRootPath, "App_Data", "goals.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
 
         var blobEndpoint = storageOptions.Value.BlobEndpoint;
         if (!string.IsNullOrEmpty(blobEndpoint))
         {
             var containerClient = new BlobContainerClient(
-                new Uri($"{blobEndpoint.TrimEnd('/')}/goals"),
+                new Uri($"{blobEndpoint.TrimEnd('/')}/{BlobContainerNames.Goals}"),
                 new DefaultAzureCredential());
-            containerClient.CreateIfNotExists();
             _blobClient = containerClient.GetBlobClient("goals.json");
         }
     }
@@ -76,6 +74,7 @@ public class GoalsService : IGoalsService
             return;
         }
 
+        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
         await File.WriteAllTextAsync(_filePath, json);
     }
 

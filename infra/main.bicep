@@ -157,8 +157,32 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   kind: 'StorageV2'
   properties: {
     allowBlobPublicAccess: false
+    allowSharedKeyAccess: false
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
+  }
+}
+
+// ------------------------------------------------------------
+// Blob containers — created here so they exist before the app starts (IHostedService is belt-and-suspenders)
+resource goalsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+  name: '${storageAccountName}/default/goals'
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
+resource tracksContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+  name: '${storageAccountName}/default/gps-tracks'
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
+resource travelDataContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+  name: '${storageAccountName}/default/travelmap'
+  properties: {
+    publicAccess: 'None'
   }
 }
 
@@ -189,6 +213,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
     tenantId: subscription().tenantId
     enableRbacAuthorization: true      // Use Azure RBAC instead of legacy access policies
     enableSoftDelete: true
+    enablePurgeProtection: true
     softDeleteRetentionInDays: 7       // Minimum — reduces cost/clutter for a personal project
     enabledForDeployment: false
     enabledForDiskEncryption: false
@@ -226,6 +251,37 @@ resource kvDeployerRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', kvSecretsOfficerRoleId)
     principalId: deployerObjectId
     principalType: 'User'
+  }
+}
+
+// ------------------------------------------------------------
+// Diagnostic Settings — App Service → Log Analytics
+// ------------------------------------------------------------
+resource appServiceDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'diag-${appName}'
+  scope: appService
+  properties: {
+    workspaceId: logAnalytics.id
+    logs: [
+      { category: 'AppServiceHTTPLogs',    enabled: true }
+      { category: 'AppServiceConsoleLogs', enabled: true }
+      { category: 'AppServiceAppLogs',     enabled: true }
+      { category: 'AppServiceAuditLogs',   enabled: true }
+    ]
+  }
+}
+
+// ------------------------------------------------------------
+// Diagnostic Settings — Key Vault → Log Analytics
+// ------------------------------------------------------------
+resource kvDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'diag-${kvName}'
+  scope: keyVault
+  properties: {
+    workspaceId: logAnalytics.id
+    logs: [
+      { category: 'AuditEvent', enabled: true }
+    ]
   }
 }
 

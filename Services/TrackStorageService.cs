@@ -21,9 +21,8 @@ public class TrackStorageService : ITrackStorageService
         if (!string.IsNullOrEmpty(blobEndpoint))
         {
             _containerClient = new BlobContainerClient(
-                new Uri($"{blobEndpoint.TrimEnd('/')}/gps-tracks"),
+                new Uri($"{blobEndpoint.TrimEnd('/')}/{BlobContainerNames.Tracks}"),
                 new DefaultAzureCredential());
-            _containerClient.CreateIfNotExists();
         }
     }
 

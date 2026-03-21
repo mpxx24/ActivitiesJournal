@@ -1,6 +1,8 @@
+using System.Net.Http.Headers;
 using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Options;
 
 namespace ActivitiesJournal;
 
@@ -28,13 +30,21 @@ public static class ServiceCollectionExtensions
                 options.SlidingExpiration = true;
             });
 
-        services.AddHttpClient<IStravaService, StravaService>();
+        services.AddHttpClient<IStravaService, StravaService>((sp, client) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<StravaOptions>>().Value;
+            client.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
+            if (!string.IsNullOrEmpty(opts.AccessToken))
+                client.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue("Bearer", opts.AccessToken);
+        });
         services.AddHttpClient("weather", c =>
         {
             c.BaseAddress = new Uri("https://archive-api.open-meteo.com/");
             c.Timeout = TimeSpan.FromSeconds(10);
         });
 
+        services.AddHostedService<AzureBlobStorageInitializer>();
         services.AddSingleton<IGoalsService, GoalsService>();
         services.AddScoped<IGoalsAnalyticsService, GoalsAnalyticsService>();
         services.AddScoped<IDashboardService, DashboardService>();
