@@ -36,27 +36,31 @@
 <!-- ID input form — always visible -->
 <div class="card bg-dark border-secondary mb-4">
     <div class="card-body">
-        <form method="get" asp-action="Compare" class="row g-3 align-items-end">
-            <div class="col-md-5">
-                <label class="form-label fw-semibold">Strava Activity ID</label>
-                <input name="stravaId" type="number" class="form-control bg-dark text-light border-secondary"
-                       placeholder="e.g. 12345678901" value="@stravaId" />
-                <div class="form-text text-muted">
-                    Find it in the Strava URL: strava.com/activities/<strong>12345678901</strong>
+        <form method="get" asp-action="Compare">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Strava Activity ID</label>
+                    <input name="stravaId" type="number" class="form-control bg-dark text-light border-secondary"
+                           placeholder="e.g. 12345678901" value="@stravaId" />
+                    <div class="form-text text-muted">
+                        Find it in the Strava URL: strava.com/activities/<strong>12345678901</strong>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Track ID</label>
+                    <input name="trackId" type="text" class="form-control bg-dark text-light border-secondary"
+                           placeholder="Paste from My Tracks" value="@trackId" />
+                    <div class="form-text text-muted">
+                        Copy the ID from the <a asp-controller="Tracks" asp-action="Index">My Tracks</a> listing.
+                    </div>
                 </div>
             </div>
-            <div class="col-md-5">
-                <label class="form-label fw-semibold">Track ID</label>
-                <input name="trackId" type="text" class="form-control bg-dark text-light border-secondary"
-                       placeholder="Paste from My Tracks" value="@trackId" />
-                <div class="form-text text-muted">
-                    Copy the ID from the <a asp-controller="Tracks" asp-action="Index">My Tracks</a> listing.
+            <div class="row mt-3">
+                <div class="col text-center">
+                    <button type="submit" class="btn btn-warning px-5">
+                        <i class="bi bi-arrow-left-right me-1"></i>Compare
+                    </button>
                 </div>
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-warning w-100">
-                    <i class="bi bi-arrow-left-right me-1"></i>Compare
-                </button>
             </div>
         </form>
     </div>
@@ -94,7 +98,7 @@
                     <tr>
                         <th class="ps-3 text-muted fw-normal">Metric</th>
                         <th class="text-center"><span class="badge" style="background:#ff6b00">Strava</span></th>
-                        <th class="text-center"><span class="badge bg-info">Track</span></th>
+                        <th class="text-center"><span class="badge" style="background:#7c3aed">Track</span></th>
                         <th class="text-center text-muted fw-normal pe-3">Δ Track − Strava</th>
                     </tr>
                 </thead>
@@ -148,7 +152,7 @@
         <div class="card-header border-secondary d-flex gap-3 align-items-center">
             <h6 class="mb-0">Route overlay</h6>
             <span class="small"><span style="display:inline-block;width:14px;height:3px;background:#ff6b00;vertical-align:middle" class="me-1"></span>Strava</span>
-            <span class="small"><span style="display:inline-block;width:14px;height:3px;background:#0dcaf0;vertical-align:middle" class="me-1"></span>Track</span>
+            <span class="small"><span style="display:inline-block;width:14px;height:3px;background:#7c3aed;vertical-align:middle" class="me-1"></span>Track</span>
         </div>
         <div class="card-body p-0">
             <div id="compare-map" style="height: 480px; border-radius: 0 0 4px 4px;"></div>
@@ -199,7 +203,7 @@
 
         var trackPoints = @Html.Raw(trackPointsJson);
         if (trackPoints && trackPoints.length) {
-            var trackLine = L.polyline(trackPoints, { color: '#0dcaf0', weight: 3, opacity: 0.85 }).addTo(map);
+            var trackLine = L.polyline(trackPoints, { color: '#7c3aed', weight: 3, opacity: 0.85 }).addTo(map);
             allBounds.push(trackLine.getBounds());
         }
 
