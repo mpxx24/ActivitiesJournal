@@ -19,8 +19,9 @@ param deployerObjectId string = ''
 // Key Vault name: max 24 chars, globally unique
 var kvName = 'kv${take(uniqueString(resourceGroup().id, appName), 21)}'
 var appServicePlanName = 'plan-${appName}'
-// Storage account name: 3-24 chars, lowercase letters/numbers only, globally unique
-var storageAccountName = 'st${take(uniqueString(resourceGroup().id, appName), 22)}'
+
+@description('Name for the production Storage Account (3-24 chars, lowercase letters/numbers only, globally unique)')
+param storageAccountName string
 
 // ------------------------------------------------------------
 // Log Analytics Workspace (required for workspace-based App Insights)

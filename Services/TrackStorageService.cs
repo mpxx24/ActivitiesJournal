@@ -101,6 +101,19 @@ public class TrackStorageService : ITrackStorageService
         }
     }
 
+    public async Task DeleteTrackAsync(string id, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+
+        if (_containerClient == null)
+            throw new InvalidOperationException("Blob storage is not configured.");
+
+        await _containerClient.GetBlobClient($"{id}.gpx").DeleteIfExistsAsync(cancellationToken: ct);
+        await _containerClient.GetBlobClient($"{id}.json").DeleteIfExistsAsync(cancellationToken: ct);
+
+        _logger.LogInformation("Deleted track {TrackId}", id);
+    }
+
     public async Task<Stream> GetTrackGpxAsync(string id, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);

@@ -1,0 +1,215 @@
+@model ActivitiesJournal.Models.ActivityCompareViewModel
+@{
+    ViewData["Title"] = "Compare Activity";
+
+    var stravaId = Context.Request.Query["stravaId"].ToString();
+    var trackId  = Context.Request.Query["trackId"].ToString();
+
+    string DeltaClass(double d) => d > 0 ? "text-success" : d < 0 ? "text-danger" : "text-muted";
+    string DeltaSign(double d)  => d > 0 ? "+" : "";
+
+    string FormatDuration(TimeSpan d) =>
+        d.TotalHours >= 1
+            ? $"{(int)d.TotalHours}h {d.Minutes:D2}m {d.Seconds:D2}s"
+            : $"{d.Minutes}m {d.Seconds:D2}s";
+
+    string FormatDelta(TimeSpan d)
+    {
+        var abs = d.Duration();
+        string sign = d.TotalSeconds > 0 ? "+" : d.TotalSeconds < 0 ? "-" : "";
+        return abs.TotalHours >= 1
+            ? $"{sign}{(int)abs.TotalHours}h {abs.Minutes:D2}m"
+            : $"{sign}{abs.Minutes}m {abs.Seconds:D2}s";
+    }
+}
+
+<div class="mt-3 mb-4">
+    <h2><i class="bi bi-arrow-left-right me-2 text-warning"></i>Compare Activity</h2>
+    <p class="text-muted small">Pick a Strava activity and a Track recording of the same session to see how they compare.</p>
+</div>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger">@ViewBag.Error</div>
+}
+
+<!-- ID input form — always visible -->
+<div class="card bg-dark border-secondary mb-4">
+    <div class="card-body">
+        <form method="get" asp-action="Compare" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label fw-semibold">Strava Activity ID</label>
+                <input name="stravaId" type="number" class="form-control bg-dark text-light border-secondary"
+                       placeholder="e.g. 12345678901" value="@stravaId" />
+                <div class="form-text text-muted">
+                    Find it in the Strava URL: strava.com/activities/<strong>12345678901</strong>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label fw-semibold">Track ID</label>
+                <input name="trackId" type="text" class="form-control bg-dark text-light border-secondary"
+                       placeholder="Paste from My Tracks" value="@trackId" />
+                <div class="form-text text-muted">
+                    Copy the ID from the <a asp-controller="Tracks" asp-action="Index">My Tracks</a> listing.
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-warning w-100">
+                    <i class="bi bi-arrow-left-right me-1"></i>Compare
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (Model.HasBoth)
+{
+    var strava = Model.Strava!;
+    var track  = Model.Track!;
+
+    <!-- Header -->
+    <div class="row g-3 mb-3 align-items-center">
+        <div class="col">
+            <h5 class="mb-0">
+                <i class="bi bi-bicycle me-1 text-warning"></i>
+                @strava.Name
+                <span class="text-muted fw-normal small ms-2">@strava.StartDateLocal.ToString("d MMM yyyy, HH:mm")</span>
+            </h5>
+        </div>
+        <div class="col-auto text-muted">vs</div>
+        <div class="col text-end">
+            <h5 class="mb-0">
+                <i class="bi bi-geo-alt me-1 text-info"></i>
+                Track recording
+                <span class="text-muted fw-normal small ms-2">@track.StartedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")</span>
+            </h5>
+        </div>
+    </div>
+
+    <!-- Stats comparison table -->
+    <div class="card bg-dark border-secondary mb-4">
+        <div class="card-body p-0">
+            <table class="table table-dark table-borderless mb-0">
+                <thead class="border-bottom border-secondary">
+                    <tr>
+                        <th class="ps-3 text-muted fw-normal">Metric</th>
+                        <th class="text-center"><span class="badge" style="background:#ff6b00">Strava</span></th>
+                        <th class="text-center"><span class="badge bg-info">Track</span></th>
+                        <th class="text-center text-muted fw-normal pe-3">Δ Track − Strava</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="ps-3 text-muted">Distance</td>
+                        <td class="text-center fw-semibold">@Model.StravaDistanceKm.ToString("0.00") km</td>
+                        <td class="text-center fw-semibold">@track.DistanceKm.ToString("0.00") km</td>
+                        <td class="text-center pe-3 @DeltaClass(Model.DistanceDeltaKm)">
+                            @DeltaSign(Model.DistanceDeltaKm)@Model.DistanceDeltaKm.ToString("0.00") km
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="ps-3 text-muted">Moving time</td>
+                        <td class="text-center fw-semibold">@FormatDuration(Model.StravaDuration)</td>
+                        <td class="text-center fw-semibold">@FormatDuration(track.Duration)</td>
+                        <td class="text-center pe-3 @DeltaClass(Model.DurationDelta.TotalSeconds)">
+                            @FormatDelta(Model.DurationDelta)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="ps-3 text-muted">Avg speed</td>
+                        <td class="text-center fw-semibold">@Model.StravaAvgSpeedKmh.ToString("0.0") km/h</td>
+                        <td class="text-center fw-semibold">@Model.TrackAvgSpeedKmh.ToString("0.0") km/h</td>
+                        <td class="text-center pe-3 @DeltaClass(Model.SpeedDeltaKmh)">
+                            @DeltaSign(Model.SpeedDeltaKmh)@Model.SpeedDeltaKmh.ToString("0.0") km/h
+                        </td>
+                    </tr>
+                    @if (strava.TotalElevationGain > 0)
+                    {
+                        <tr>
+                            <td class="ps-3 text-muted">Elevation gain</td>
+                            <td class="text-center fw-semibold">@strava.TotalElevationGain.ToString("0") m</td>
+                            <td class="text-center text-muted">—</td>
+                            <td class="text-center pe-3 text-muted">—</td>
+                        </tr>
+                    }
+                    <tr>
+                        <td class="ps-3 text-muted">GPS points</td>
+                        <td class="text-center text-muted">—</td>
+                        <td class="text-center fw-semibold">@track.PointCount.ToString("N0")</td>
+                        <td class="text-center pe-3 text-muted">—</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Map -->
+    <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header border-secondary d-flex gap-3 align-items-center">
+            <h6 class="mb-0">Route overlay</h6>
+            <span class="small"><span style="display:inline-block;width:14px;height:3px;background:#ff6b00;vertical-align:middle" class="me-1"></span>Strava</span>
+            <span class="small"><span style="display:inline-block;width:14px;height:3px;background:#0dcaf0;vertical-align:middle" class="me-1"></span>Track</span>
+        </div>
+        <div class="card-body p-0">
+            <div id="compare-map" style="height: 480px; border-radius: 0 0 4px 4px;"></div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+@if (Model.HasBoth)
+{
+    var strava = Model.Strava!;
+    var stravaPolylineJson = System.Text.Json.JsonSerializer.Serialize(strava.Map?.SummaryPolyline ?? "");
+    var trackPointsJson    = System.Text.Json.JsonSerializer.Serialize(
+        Model.TrackPoints.Select(p => new[] { p.Latitude, p.Longitude }));
+    <script>
+    (function () {
+        function decodePolyline(str) {
+            if (!str) return [];
+            var index = 0, lat = 0, lng = 0, coords = [], shift, result, b;
+            while (index < str.length) {
+                shift = 0; result = 0;
+                do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+                shift = 0; result = 0;
+                do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+                coords.push([lat / 1e5, lng / 1e5]);
+            }
+            return coords;
+        }
+
+        var map = L.map('compare-map');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: 19
+        }).addTo(map);
+
+        var allBounds = [];
+
+        var stravaEncoded = @Html.Raw(stravaPolylineJson);
+        if (stravaEncoded) {
+            var stravaCoords = decodePolyline(stravaEncoded);
+            if (stravaCoords.length) {
+                var stravaLine = L.polyline(stravaCoords, { color: '#ff6b00', weight: 4, opacity: 0.9 }).addTo(map);
+                allBounds.push(stravaLine.getBounds());
+            }
+        }
+
+        var trackPoints = @Html.Raw(trackPointsJson);
+        if (trackPoints && trackPoints.length) {
+            var trackLine = L.polyline(trackPoints, { color: '#0dcaf0', weight: 3, opacity: 0.85 }).addTo(map);
+            allBounds.push(trackLine.getBounds());
+        }
+
+        if (allBounds.length) {
+            var combined = allBounds.reduce(function (b, next) { return b.extend(next); });
+            map.fitBounds(combined, { padding: [30, 30] });
+        } else {
+            map.setView([51.505, -0.09], 10);
+        }
+    })();
+    </script>
+}
+}

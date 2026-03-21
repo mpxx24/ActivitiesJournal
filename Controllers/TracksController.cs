@@ -59,6 +59,16 @@ public class TracksController : Controller
         }
     }
 
+    [HttpPost]
+    public async Task<IActionResult> Delete(string id, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(id))
+            return BadRequest();
+
+        await _trackStorage.DeleteTrackAsync(id, ct);
+        return RedirectToAction("Index");
+    }
+
     [AllowAnonymous]
     [TypeFilter(typeof(RequireApiKeyFilter))]
     [HttpPost]

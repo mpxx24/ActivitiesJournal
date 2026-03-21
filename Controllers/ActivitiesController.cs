@@ -7,14 +7,19 @@ namespace ActivitiesJournal.Controllers;
 public class ActivitiesController : Controller
 {
     private readonly IStravaService _stravaService;
+    private readonly ITrackStorageService _trackStorage;
+    private readonly ITrackParserService _trackParser;
     private readonly ILogger<ActivitiesController> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _memoryCache;
 
-    public ActivitiesController(IStravaService stravaService, ILogger<ActivitiesController> logger,
+    public ActivitiesController(IStravaService stravaService, ITrackStorageService trackStorage,
+        ITrackParserService trackParser, ILogger<ActivitiesController> logger,
         IHttpClientFactory httpClientFactory, Microsoft.Extensions.Caching.Memory.IMemoryCache memoryCache)
     {
         _stravaService = stravaService;
+        _trackStorage = trackStorage;
+        _trackParser = trackParser;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
         _memoryCache = memoryCache;
@@ -115,6 +120,54 @@ public class ActivitiesController : Controller
             _logger.LogError(ex, "Error loading activity {ActivityId}", id);
             ViewBag.Error = "Failed to load activity details.";
             return View();
+        }
+    }
+
+    public async Task<IActionResult> Compare(long? stravaId, string? trackId, CancellationToken ct)
+    {
+        if (stravaId == null || string.IsNullOrEmpty(trackId))
+            return View(new Models.ActivityCompareViewModel());
+
+        try
+        {
+            var activity = await _stravaService.GetActivityByIdAsync(stravaId.Value);
+            if (activity == null)
+            {
+                ViewBag.Error = $"Strava activity {stravaId} not found.";
+                return View(new Models.ActivityCompareViewModel());
+            }
+
+            var summary = await _trackStorage.GetTrackSummaryAsync(trackId, ct);
+            if (summary == null)
+            {
+                ViewBag.Error = $"Track {trackId} not found.";
+                return View(new Models.ActivityCompareViewModel());
+            }
+
+            IReadOnlyList<Models.GpxPoint> points = Array.Empty<Models.GpxPoint>();
+            try
+            {
+                var gpxStream = await _trackStorage.GetTrackGpxAsync(trackId, ct);
+                var parsed = _trackParser.Parse(gpxStream);
+                points = parsed.Points;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load GPX points for track {TrackId}", trackId);
+            }
+
+            return View(new Models.ActivityCompareViewModel
+            {
+                Strava = activity,
+                Track = summary,
+                TrackPoints = points
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading comparison stravaId={StravaId} trackId={TrackId}", stravaId, trackId);
+            ViewBag.Error = "Failed to load comparison data.";
+            return View(new Models.ActivityCompareViewModel());
         }
     }
 

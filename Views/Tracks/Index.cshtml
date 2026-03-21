@@ -36,12 +36,14 @@ else
                 <th class="text-end">Distance</th>
                 <th class="text-end">Duration</th>
                 <th class="text-end">Points</th>
+                <th>Track ID</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
             @foreach (var track in Model)
             {
+                var shortId = track.Id.Length > 8 ? track.Id[..4] + "…" + track.Id[^4..] : track.Id;
                 <tr>
                     <td class="text-muted small">@track.StartedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")</td>
                     <td>
@@ -51,14 +53,45 @@ else
                     <td class="text-end fw-semibold">@track.DistanceKm.ToString("0.00") km</td>
                     <td class="text-end">@FormatDuration(track.Duration)</td>
                     <td class="text-end text-muted small">@track.PointCount</td>
+                    <td>
+                        <span class="d-flex align-items-center gap-1">
+                            <code class="small text-muted" title="@track.Id">@shortId</code>
+                            <button class="btn btn-link btn-sm p-0 text-muted copy-id-btn"
+                                    data-id="@track.Id" title="Copy Track ID">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </span>
+                    </td>
                     <td class="text-end">
                         <a asp-controller="Tracks" asp-action="Detail" asp-route-id="@track.Id"
-                           class="btn btn-sm btn-outline-secondary">
+                           class="btn btn-sm btn-outline-secondary me-1">
                             <i class="bi bi-map me-1"></i>View
                         </a>
+                        <form asp-controller="Tracks" asp-action="Delete" asp-route-id="@track.Id"
+                              method="post" class="d-inline"
+                              onsubmit="return confirm('Delete this track?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
                     </td>
                 </tr>
             }
         </tbody>
     </table>
+}
+
+@section Scripts {
+<script>
+document.querySelectorAll('.copy-id-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-id');
+        navigator.clipboard.writeText(id).then(function () {
+            var icon = btn.querySelector('i');
+            icon.className = 'bi bi-clipboard-check text-success';
+            setTimeout(function () { icon.className = 'bi bi-clipboard'; }, 1500);
+        });
+    });
+});
+</script>
 }
