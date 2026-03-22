@@ -12,25 +12,27 @@ public class StravaService : IStravaService
     private readonly StravaOptions _config;
     private readonly HttpClient _httpClient;
     private readonly IMemoryCache _cache;
+    private readonly ISegmentPolylineCacheService _segmentPolylineCache;
     private readonly ILogger<StravaService> _logger;
 
     private const string AllActivitiesCacheKey = "strava_all_activities";
     private static string PageCacheKey(int page, int perPage) => $"strava_page_{page}_{perPage}";
     private static string ActivityCacheKey(long id) => $"strava_activity_{id}";
+    private static string SegmentPolyCacheKey(long id) => $"segment_poly_{id}";
     private static DateTime? _cacheTimestamp;
 
     private static readonly TimeSpan ListCacheDuration = TimeSpan.FromHours(1);
     private static readonly TimeSpan DetailCacheDuration = TimeSpan.FromHours(1);
-    private static string SegmentPolyCacheKey(long id) => $"segment_poly_{id}";
 
     private record SegmentDetailResponse([property: System.Text.Json.Serialization.JsonPropertyName("map")] SegmentMapDetail? Map);
     private record SegmentMapDetail([property: System.Text.Json.Serialization.JsonPropertyName("polyline")] string? Polyline);
 
-    public StravaService(IOptions<StravaOptions> config, HttpClient httpClient, IMemoryCache cache, ILogger<StravaService> logger)
+    public StravaService(IOptions<StravaOptions> config, HttpClient httpClient, IMemoryCache cache, ISegmentPolylineCacheService segmentPolylineCache, ILogger<StravaService> logger)
     {
         _config = config.Value;
         _httpClient = httpClient;
         _cache = cache;
+        _segmentPolylineCache = segmentPolylineCache;
         _logger = logger;
     }
 
@@ -315,8 +317,18 @@ public class StravaService : IStravaService
     public async Task<string?> GetSegmentPolylineAsync(long segmentId)
     {
         var cacheKey = SegmentPolyCacheKey(segmentId);
+
+        // In-memory check first (also catches null "known-bad" entries within a session)
         if (_cache.TryGetValue(cacheKey, out string? cached))
             return cached;
+
+        // Persistent cache: segment shapes never change, so a hit here means no Strava call needed
+        var persisted = await _segmentPolylineCache.GetAsync(segmentId);
+        if (persisted != null)
+        {
+            _cache.Set(cacheKey, persisted, new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
+            return persisted;
+        }
 
         try
         {
@@ -329,14 +341,18 @@ public class StravaService : IStravaService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Could not fetch segment {SegmentId}: {Status}", segmentId, response.StatusCode);
+                _cache.Set(cacheKey, (string?)null, new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
                 return null;
             }
             var content = await response.Content.ReadAsStringAsync();
             var detail = JsonSerializer.Deserialize<SegmentDetailResponse>(content,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             var polyline = detail?.Map?.Polyline;
-            // Cache permanently — segment shapes never change
+
             _cache.Set(cacheKey, polyline, new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
+            if (polyline != null)
+                await _segmentPolylineCache.SetAsync(segmentId, polyline);
+
             return polyline;
         }
         catch (Exception ex)

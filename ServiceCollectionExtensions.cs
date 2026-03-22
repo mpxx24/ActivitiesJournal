@@ -45,6 +45,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddHostedService<AzureBlobStorageInitializer>();
+        services.AddSingleton<ISegmentPolylineCacheService, SegmentPolylineCacheService>();
         services.AddSingleton<IGoalsService, GoalsService>();
         services.AddScoped<IGoalsAnalyticsService, GoalsAnalyticsService>();
         services.AddScoped<IDashboardService, DashboardService>();
