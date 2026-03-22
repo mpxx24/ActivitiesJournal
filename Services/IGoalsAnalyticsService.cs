@@ -4,5 +4,5 @@ namespace ActivitiesJournal.Services;
 
 public interface IGoalsAnalyticsService
 {
-    Task<GoalsViewModel> BuildGoalsViewModelAsync();
+    Task<GoalsViewModel> BuildGoalsViewModelAsync(long athleteId);
 }

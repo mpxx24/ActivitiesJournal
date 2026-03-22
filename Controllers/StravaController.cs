@@ -3,6 +3,7 @@ using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -24,6 +25,7 @@ public class StravaController : Controller
         _logger = logger;
     }
 
+    [Authorize]
     [HttpPost]
     public IActionResult ClearCache(string? returnUrl = null)
     {
@@ -50,16 +52,13 @@ public class StravaController : Controller
         {
             var athleteId = await _stravaService.ExchangeCodeForTokenAsync(code);
 
-            if (_ownerOptions.OwnerAthleteId != 0 && athleteId == _ownerOptions.OwnerAthleteId)
-            {
-                var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, athleteId.ToString()) };
-                var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-                await HttpContext.SignInAsync(
-                    CookieAuthenticationDefaults.AuthenticationScheme,
-                    new ClaimsPrincipal(identity),
-                    new AuthenticationProperties { IsPersistent = true });
-                _logger.LogInformation("Owner signed in via Strava OAuth. AthleteId: {AthleteId}", athleteId);
-            }
+            var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, athleteId.ToString()) };
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            await HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                new ClaimsPrincipal(identity),
+                new AuthenticationProperties { IsPersistent = true });
+            _logger.LogInformation("Athlete {AthleteId} signed in via Strava OAuth", athleteId);
 
             return RedirectToAction("Index", "Activities");
         }

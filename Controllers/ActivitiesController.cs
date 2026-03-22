@@ -1,9 +1,11 @@
 using ActivitiesJournal.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace ActivitiesJournal.Controllers;
 
+[Authorize]
 public class ActivitiesController : Controller
 {
     private readonly IStravaService _stravaService;

@@ -1,9 +1,12 @@
+using System.Security.Claims;
 using ActivitiesJournal.Models;
 using ActivitiesJournal.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ActivitiesJournal.Controllers;
 
+[Authorize]
 public class GoalsController : Controller
 {
     private readonly IGoalsService _goals;
@@ -17,11 +20,14 @@ public class GoalsController : Controller
         _logger = logger;
     }
 
+    private long GetAthleteId() =>
+        long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
+
     public async Task<IActionResult> Index()
     {
         try
         {
-            var vm = await _analytics.BuildGoalsViewModelAsync();
+            var vm = await _analytics.BuildGoalsViewModelAsync(GetAthleteId());
             return View(vm);
         }
         catch (Exception ex)
@@ -35,8 +41,9 @@ public class GoalsController : Controller
     [HttpPost]
     public async Task<IActionResult> SaveGoals(double? distanceGoalKm, double? elevationGoalM, int? ridesGoal)
     {
+        var athleteId = GetAthleteId();
         int year = DateTime.Now.Year;
-        var data = await _goals.LoadAsync();
+        var data = await _goals.LoadAsync(athleteId);
         var existing = data.AnnualGoals.FirstOrDefault(g => g.Year == year);
         if (existing == null)
         {
@@ -46,22 +53,23 @@ public class GoalsController : Controller
         existing.DistanceGoalKm = distanceGoalKm;
         existing.ElevationGoalM = elevationGoalM;
         existing.RidesGoal = ridesGoal;
-        await _goals.SaveAsync(data);
+        await _goals.SaveAsync(data, athleteId);
         return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
     public async Task<IActionResult> ClearGoal(string field)
     {
+        var athleteId = GetAthleteId();
         int year = DateTime.Now.Year;
-        var data = await _goals.LoadAsync();
+        var data = await _goals.LoadAsync(athleteId);
         var existing = data.AnnualGoals.FirstOrDefault(g => g.Year == year);
         if (existing != null)
         {
             if (field == "distance")  existing.DistanceGoalKm = null;
             if (field == "elevation") existing.ElevationGoalM = null;
             if (field == "rides")     existing.RidesGoal = null;
-            await _goals.SaveAsync(data);
+            await _goals.SaveAsync(data, athleteId);
         }
         return RedirectToAction(nameof(Index));
     }
@@ -69,31 +77,34 @@ public class GoalsController : Controller
     [HttpPost]
     public async Task<IActionResult> AddChallenge(string name, double targetKm, DateTime startDate)
     {
-        var data = await _goals.LoadAsync();
+        var athleteId = GetAthleteId();
+        var data = await _goals.LoadAsync(athleteId);
         data.Challenges.Add(new VirtualChallenge { Name = name, TargetKm = targetKm, StartDate = startDate });
-        await _goals.SaveAsync(data);
+        await _goals.SaveAsync(data, athleteId);
         return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
     public async Task<IActionResult> DeleteChallenge(string id)
     {
-        var data = await _goals.LoadAsync();
+        var athleteId = GetAthleteId();
+        var data = await _goals.LoadAsync(athleteId);
         var ch = data.Challenges.FirstOrDefault(c => c.Id == id);
         if (ch != null && !ch.IsPreset)
             data.Challenges.Remove(ch);
-        await _goals.SaveAsync(data);
+        await _goals.SaveAsync(data, athleteId);
         return RedirectToAction(nameof(Index));
     }
 
     [HttpPost]
     public async Task<IActionResult> ResetChallenge(string id)
     {
-        var data = await _goals.LoadAsync();
+        var athleteId = GetAthleteId();
+        var data = await _goals.LoadAsync(athleteId);
         var ch = data.Challenges.FirstOrDefault(c => c.Id == id);
         if (ch != null)
             ch.StartDate = DateTime.Today;
-        await _goals.SaveAsync(data);
+        await _goals.SaveAsync(data, athleteId);
         return RedirectToAction(nameof(Index));
     }
 }

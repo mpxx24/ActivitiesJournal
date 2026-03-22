@@ -9,33 +9,33 @@ namespace ActivitiesJournal.Services;
 
 public class GoalsService : IGoalsService
 {
-    private readonly string _filePath;
-    private readonly BlobClient? _blobClient;
+    private readonly string _dataDirectory;
+    private readonly BlobContainerClient? _containerClient;
     private readonly ILogger<GoalsService> _logger;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public GoalsService(IWebHostEnvironment env, IOptions<StorageOptions> storageOptions, ILogger<GoalsService> logger)
     {
         _logger = logger;
-        _filePath = Path.Combine(env.ContentRootPath, "App_Data", "goals.json");
+        _dataDirectory = Path.Combine(env.ContentRootPath, "App_Data");
 
         var blobEndpoint = storageOptions.Value.BlobEndpoint;
         if (!string.IsNullOrEmpty(blobEndpoint))
         {
-            var containerClient = new BlobContainerClient(
+            _containerClient = new BlobContainerClient(
                 new Uri($"{blobEndpoint.TrimEnd('/')}/{BlobContainerNames.Goals}"),
                 new DefaultAzureCredential());
-            _blobClient = containerClient.GetBlobClient("goals.json");
         }
     }
 
-    public async Task<GoalsData> LoadAsync()
+    public async Task<GoalsData> LoadAsync(long athleteId)
     {
-        if (_blobClient != null)
+        if (_containerClient != null)
         {
             try
             {
-                var response = await _blobClient.DownloadContentAsync();
+                var blobClient = _containerClient.GetBlobClient($"goals-{athleteId}.json");
+                var response = await blobClient.DownloadContentAsync();
                 return JsonSerializer.Deserialize<GoalsData>(response.Value.Content.ToString(), JsonOptions)
                     ?? SeedDefaults();
             }
@@ -45,38 +45,44 @@ public class GoalsService : IGoalsService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to load goals from blob storage, returning defaults");
+                _logger.LogWarning(ex, "Failed to load goals from blob storage for athlete {AthleteId}, returning defaults", athleteId);
                 return SeedDefaults();
             }
         }
 
-        if (!File.Exists(_filePath)) return SeedDefaults();
+        var filePath = GetLocalFilePath(athleteId);
+        if (!File.Exists(filePath)) return SeedDefaults();
         try
         {
-            var text = await File.ReadAllTextAsync(_filePath);
+            var text = await File.ReadAllTextAsync(filePath);
             return JsonSerializer.Deserialize<GoalsData>(text, JsonOptions) ?? SeedDefaults();
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to load goals from file, returning defaults");
+            _logger.LogWarning(ex, "Failed to load goals from file for athlete {AthleteId}, returning defaults", athleteId);
             return SeedDefaults();
         }
     }
 
-    public async Task SaveAsync(GoalsData data)
+    public async Task SaveAsync(GoalsData data, long athleteId)
     {
         var json = JsonSerializer.Serialize(data, JsonOptions);
 
-        if (_blobClient != null)
+        if (_containerClient != null)
         {
+            var blobClient = _containerClient.GetBlobClient($"goals-{athleteId}.json");
             using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
-            await _blobClient.UploadAsync(stream, overwrite: true);
+            await blobClient.UploadAsync(stream, overwrite: true);
             return;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-        await File.WriteAllTextAsync(_filePath, json);
+        var filePath = GetLocalFilePath(athleteId);
+        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+        await File.WriteAllTextAsync(filePath, json);
     }
+
+    private string GetLocalFilePath(long athleteId) =>
+        Path.Combine(_dataDirectory, $"goals-{athleteId}.json");
 
     private static GoalsData SeedDefaults()
     {

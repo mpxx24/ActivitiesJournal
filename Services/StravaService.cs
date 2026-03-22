@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Security.Claims;
 using System.Text.Json;
 using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Models;
@@ -13,13 +14,14 @@ public class StravaService : IStravaService
     private readonly HttpClient _httpClient;
     private readonly IMemoryCache _cache;
     private readonly ISegmentPolylineCacheService _segmentPolylineCache;
+    private readonly ITokenStore _tokenStore;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<StravaService> _logger;
 
-    private const string AllActivitiesCacheKey = "strava_all_activities";
-    private static string PageCacheKey(int page, int perPage) => $"strava_page_{page}_{perPage}";
-    private static string ActivityCacheKey(long id) => $"strava_activity_{id}";
-    private static string SegmentPolyCacheKey(long id) => $"segment_poly_{id}";
-    private static DateTime? _cacheTimestamp;
+    private string AllActivitiesCacheKey() => $"strava_all_activities_{GetCurrentAthleteId()}";
+    private string PageCacheKey(int page, int perPage) => $"strava_page_{GetCurrentAthleteId()}_{page}_{perPage}";
+    private string ActivityCacheKey(long id) => $"strava_activity_{GetCurrentAthleteId()}_{id}";
+    private string SegmentPolyCacheKey(long id) => $"segment_poly_{GetCurrentAthleteId()}_{id}";
 
     private static readonly TimeSpan ListCacheDuration = TimeSpan.FromHours(1);
     private static readonly TimeSpan DetailCacheDuration = TimeSpan.FromHours(1);
@@ -27,27 +29,49 @@ public class StravaService : IStravaService
     private record SegmentDetailResponse([property: System.Text.Json.Serialization.JsonPropertyName("map")] SegmentMapDetail? Map);
     private record SegmentMapDetail([property: System.Text.Json.Serialization.JsonPropertyName("polyline")] string? Polyline);
 
-    public StravaService(IOptions<StravaOptions> config, HttpClient httpClient, IMemoryCache cache, ISegmentPolylineCacheService segmentPolylineCache, ILogger<StravaService> logger)
+    public StravaService(
+        IOptions<StravaOptions> config,
+        HttpClient httpClient,
+        IMemoryCache cache,
+        ISegmentPolylineCacheService segmentPolylineCache,
+        ITokenStore tokenStore,
+        IHttpContextAccessor httpContextAccessor,
+        ILogger<StravaService> logger)
     {
         _config = config.Value;
         _httpClient = httpClient;
         _cache = cache;
         _segmentPolylineCache = segmentPolylineCache;
+        _tokenStore = tokenStore;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
+    }
+
+    private long GetCurrentAthleteId()
+    {
+        var value = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        return long.TryParse(value, out var id) ? id : 0;
+    }
+
+    private void SetAuthHeader()
+    {
+        var athleteId = GetCurrentAthleteId();
+        var (accessToken, _) = _tokenStore.Get(athleteId);
+        if (!string.IsNullOrEmpty(accessToken))
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
     }
 
     public void InvalidateCache()
     {
-        // Remove the all-activities aggregate key
-        _cache.Remove(AllActivitiesCacheKey);
-        // Remove paginated list keys (pages 1–20 cover any realistic dataset)
+        var athleteId = GetCurrentAthleteId();
+        _cache.Remove(AllActivitiesCacheKey());
         for (int p = 1; p <= 20; p++)
             _cache.Remove(PageCacheKey(p, 200));
-        _cacheTimestamp = null;
-        _logger.LogInformation("Strava cache invalidated");
+        _tokenStore.SetCacheTimestamp(athleteId, null);
+        _logger.LogInformation("Strava cache invalidated for athlete {AthleteId}", athleteId);
     }
 
-    public DateTime? GetCacheTimestamp() => _cacheTimestamp;
+    public DateTime? GetCacheTimestamp() => _tokenStore.GetCacheTimestamp(GetCurrentAthleteId());
 
     public async Task<List<StravaActivity>> GetActivitiesAsync(int page = 1, int perPage = 30)
     {
@@ -64,19 +88,22 @@ public class StravaService : IStravaService
     {
         try
         {
-            if (string.IsNullOrEmpty(_config.AccessToken))
+            var athleteId = GetCurrentAthleteId();
+            var (accessToken, _) = _tokenStore.Get(athleteId);
+            if (string.IsNullOrEmpty(accessToken))
             {
-                _logger.LogError("Access token is not configured. Please set Strava:AccessToken in User Secrets.");
-                throw new InvalidOperationException("Strava access token is not configured. Please configure it in User Secrets.");
+                _logger.LogError("No access token found for athlete {AthleteId}. Please log in via Strava OAuth.", athleteId);
+                throw new InvalidOperationException("Strava access token is not configured. Please log in via Strava OAuth.");
             }
 
+            SetAuthHeader();
             var response = await _httpClient.GetAsync(
                 $"athlete/activities?page={page}&per_page={perPage}");
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Strava API error: Status {StatusCode}, Response: {ErrorContent}", 
+                _logger.LogError("Strava API error: Status {StatusCode}, Response: {ErrorContent}",
                     response.StatusCode, errorContent);
 
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -85,11 +112,11 @@ public class StravaService : IStravaService
                     await RefreshAccessTokenAsync();
                     response = await _httpClient.GetAsync(
                         $"athlete/activities?page={page}&per_page={perPage}");
-                    
+
                     if (!response.IsSuccessStatusCode)
                     {
                         errorContent = await response.Content.ReadAsStringAsync();
-                        _logger.LogError("Strava API error after refresh: Status {StatusCode}, Response: {ErrorContent}", 
+                        _logger.LogError("Strava API error after refresh: Status {StatusCode}, Response: {ErrorContent}",
                             response.StatusCode, errorContent);
                     }
                 }
@@ -106,10 +133,10 @@ public class StravaService : IStravaService
 
             var content = await response.Content.ReadAsStringAsync();
             var activities = JsonSerializer.Deserialize<List<StravaActivity>>(
-                content, 
-                new JsonSerializerOptions 
-                { 
-                    PropertyNameCaseInsensitive = true 
+                content,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
                 });
 
             return activities ?? new List<StravaActivity>();
@@ -123,7 +150,8 @@ public class StravaService : IStravaService
 
     public async Task<List<StravaActivity>> GetAllActivitiesAsync()
     {
-        if (_cache.TryGetValue(AllActivitiesCacheKey, out List<StravaActivity>? cached) && cached != null)
+        var cacheKey = AllActivitiesCacheKey();
+        if (_cache.TryGetValue(cacheKey, out List<StravaActivity>? cached) && cached != null)
             return cached;
 
         var all = new List<StravaActivity>();
@@ -136,8 +164,8 @@ public class StravaService : IStravaService
             if (batch.Count < perPage) break;
             page++;
         }
-        _cache.Set(AllActivitiesCacheKey, all, ListCacheDuration);
-        _cacheTimestamp = DateTime.Now;
+        _cache.Set(cacheKey, all, ListCacheDuration);
+        _tokenStore.SetCacheTimestamp(GetCurrentAthleteId(), DateTime.Now);
         return all;
     }
 
@@ -157,18 +185,21 @@ public class StravaService : IStravaService
     {
         try
         {
-            if (string.IsNullOrEmpty(_config.AccessToken))
+            var athleteId = GetCurrentAthleteId();
+            var (accessToken, _) = _tokenStore.Get(athleteId);
+            if (string.IsNullOrEmpty(accessToken))
             {
-                _logger.LogError("Access token is not configured. Please set Strava:AccessToken in User Secrets.");
-                throw new InvalidOperationException("Strava access token is not configured. Please configure it in User Secrets.");
+                _logger.LogError("No access token found for athlete {AthleteId}. Please log in via Strava OAuth.", athleteId);
+                throw new InvalidOperationException("Strava access token is not configured. Please log in via Strava OAuth.");
             }
 
+            SetAuthHeader();
             var response = await _httpClient.GetAsync($"activities/{activityId}");
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Strava API error: Status {StatusCode}, Response: {ErrorContent}", 
+                _logger.LogError("Strava API error: Status {StatusCode}, Response: {ErrorContent}",
                     response.StatusCode, errorContent);
 
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -176,11 +207,11 @@ public class StravaService : IStravaService
                     _logger.LogWarning("Access token expired, attempting to refresh...");
                     await RefreshAccessTokenAsync();
                     response = await _httpClient.GetAsync($"activities/{activityId}");
-                    
+
                     if (!response.IsSuccessStatusCode)
                     {
                         errorContent = await response.Content.ReadAsStringAsync();
-                        _logger.LogError("Strava API error after refresh: Status {StatusCode}, Response: {ErrorContent}", 
+                        _logger.LogError("Strava API error after refresh: Status {StatusCode}, Response: {ErrorContent}",
                             response.StatusCode, errorContent);
                     }
                 }
@@ -215,11 +246,14 @@ public class StravaService : IStravaService
     {
         try
         {
+            var athleteId = GetCurrentAthleteId();
+            var (_, refreshToken) = _tokenStore.Get(athleteId);
+
             var requestBody = new Dictionary<string, string>
             {
                 { "client_id", _config.ClientId },
                 { "client_secret", _config.ClientSecret },
-                { "refresh_token", _config.RefreshToken },
+                { "refresh_token", refreshToken ?? _config.RefreshToken },
                 { "grant_type", "refresh_token" }
             };
 
@@ -236,14 +270,9 @@ public class StravaService : IStravaService
 
             if (!string.IsNullOrEmpty(newAccessToken))
             {
-                _config.AccessToken = newAccessToken;
+                _tokenStore.Set(athleteId, newAccessToken, newRefreshToken ?? string.Empty);
                 _httpClient.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", newAccessToken);
-            }
-
-            if (!string.IsNullOrEmpty(newRefreshToken))
-            {
-                _config.RefreshToken = newRefreshToken;
             }
 
             InvalidateCache();
@@ -285,23 +314,18 @@ public class StravaService : IStravaService
             var newAccessToken = tokenResponse.GetProperty("access_token").GetString();
             var newRefreshToken = tokenResponse.GetProperty("refresh_token").GetString();
 
-            if (!string.IsNullOrEmpty(newAccessToken))
-            {
-                _config.AccessToken = newAccessToken;
-                _httpClient.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", newAccessToken);
-            }
-
-            if (!string.IsNullOrEmpty(newRefreshToken))
-            {
-                _config.RefreshToken = newRefreshToken;
-            }
-
             long athleteId = 0;
             if (tokenResponse.TryGetProperty("athlete", out var athlete) &&
                 athlete.TryGetProperty("id", out var idProp))
             {
                 athleteId = idProp.GetInt64();
+            }
+
+            if (!string.IsNullOrEmpty(newAccessToken) && athleteId != 0)
+            {
+                _tokenStore.Set(athleteId, newAccessToken, newRefreshToken ?? string.Empty);
+                _httpClient.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue("Bearer", newAccessToken);
             }
 
             _logger.LogInformation("Successfully exchanged authorization code for access token. AthleteId: {AthleteId}", athleteId);
@@ -316,14 +340,13 @@ public class StravaService : IStravaService
 
     public async Task<string?> GetSegmentPolylineAsync(long segmentId)
     {
+        var athleteId = GetCurrentAthleteId();
         var cacheKey = SegmentPolyCacheKey(segmentId);
 
-        // In-memory check first (also catches null "known-bad" entries within a session)
         if (_cache.TryGetValue(cacheKey, out string? cached))
             return cached;
 
-        // Persistent cache: segment shapes never change, so a hit here means no Strava call needed
-        var persisted = await _segmentPolylineCache.GetAsync(segmentId);
+        var persisted = await _segmentPolylineCache.GetAsync(athleteId, segmentId);
         if (persisted != null)
         {
             _cache.Set(cacheKey, persisted, new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
@@ -332,6 +355,7 @@ public class StravaService : IStravaService
 
         try
         {
+            SetAuthHeader();
             var response = await _httpClient.GetAsync($"segments/{segmentId}");
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
@@ -351,7 +375,7 @@ public class StravaService : IStravaService
 
             _cache.Set(cacheKey, polyline, new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
             if (polyline != null)
-                await _segmentPolylineCache.SetAsync(segmentId, polyline);
+                await _segmentPolylineCache.SetAsync(athleteId, segmentId, polyline);
 
             return polyline;
         }
@@ -364,18 +388,15 @@ public class StravaService : IStravaService
 
     public string GetAuthorizationUrl()
     {
-        // Use configured redirect URI if available, otherwise fall back to default dev URL.
         var redirectUri = string.IsNullOrWhiteSpace(_config.RedirectUri)
             ? "http://localhost:5010/Strava/Callback"
             : _config.RedirectUri;
-        var scope = "activity:read_all";
-        var state = Guid.NewGuid().ToString();
 
-        return $"https://www.strava.com/oauth/authorize?" +
-               $"client_id={_config.ClientId}&" +
-               $"redirect_uri={Uri.EscapeDataString(redirectUri)}&" +
-               $"response_type=code&" +
-               $"scope={scope}&" +
-               $"state={state}";
+        return $"https://www.strava.com/oauth/authorize" +
+               $"?client_id={_config.ClientId}" +
+               $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+               $"&response_type=code" +
+               $"&approval_prompt=auto" +
+               $"&scope=activity:read_all";
     }
 }

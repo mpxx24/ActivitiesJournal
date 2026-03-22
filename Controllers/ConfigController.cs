@@ -1,9 +1,11 @@
 using ActivitiesJournal.Configuration;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
 namespace ActivitiesJournal.Controllers;
 
+[Authorize]
 public class ConfigController : Controller
 {
     private readonly StravaOptions _config;

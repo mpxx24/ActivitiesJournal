@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -30,13 +29,13 @@ public static class ServiceCollectionExtensions
                 options.SlidingExpiration = true;
             });
 
+        services.AddHttpContextAccessor();
+        services.AddSingleton<ITokenStore, TokenStore>();
+
         services.AddHttpClient<IStravaService, StravaService>((sp, client) =>
         {
             var opts = sp.GetRequiredService<IOptions<StravaOptions>>().Value;
             client.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
-            if (!string.IsNullOrEmpty(opts.AccessToken))
-                client.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", opts.AccessToken);
         });
         services.AddHttpClient("weather", c =>
         {

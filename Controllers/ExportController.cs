@@ -1,10 +1,12 @@
 using System.Text;
 using System.Text.Json;
 using ActivitiesJournal.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ActivitiesJournal.Controllers;
 
+[Authorize]
 public class ExportController : Controller
 {
     private readonly IStravaService _stravaService;

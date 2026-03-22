@@ -24,10 +24,10 @@ public class GoalsAnalyticsServiceTests
     {
         _stravaMock.Setup(s => s.GetAllActivitiesAsync())
             .ReturnsAsync(new List<StravaActivity>());
-        _goalsMock.Setup(g => g.LoadAsync())
+        _goalsMock.Setup(g => g.LoadAsync(It.IsAny<long>()))
             .ReturnsAsync(new GoalsData());
 
-        var vm = await _sut.BuildGoalsViewModelAsync();
+        var vm = await _sut.BuildGoalsViewModelAsync(123);
 
         Assert.That(vm.CurrentDistanceKm, Is.EqualTo(0));
         Assert.That(vm.CurrentElevationM, Is.EqualTo(0));
@@ -48,9 +48,9 @@ public class GoalsAnalyticsServiceTests
         };
 
         _stravaMock.Setup(s => s.GetAllActivitiesAsync()).ReturnsAsync(activities);
-        _goalsMock.Setup(g => g.LoadAsync()).ReturnsAsync(new GoalsData());
+        _goalsMock.Setup(g => g.LoadAsync(It.IsAny<long>())).ReturnsAsync(new GoalsData());
 
-        var vm = await _sut.BuildGoalsViewModelAsync();
+        var vm = await _sut.BuildGoalsViewModelAsync(123);
 
         Assert.That(vm.CurrentDistanceKm, Is.EqualTo(55.0).Within(0.1));
         Assert.That(vm.CurrentElevationM, Is.EqualTo(800));
@@ -75,9 +75,9 @@ public class GoalsAnalyticsServiceTests
         };
 
         _stravaMock.Setup(s => s.GetAllActivitiesAsync()).ReturnsAsync(activities);
-        _goalsMock.Setup(g => g.LoadAsync()).ReturnsAsync(goalsData);
+        _goalsMock.Setup(g => g.LoadAsync(It.IsAny<long>())).ReturnsAsync(goalsData);
 
-        var vm = await _sut.BuildGoalsViewModelAsync();
+        var vm = await _sut.BuildGoalsViewModelAsync(123);
 
         Assert.That(vm.Goals.DistanceGoalKm, Is.EqualTo(5000));
         Assert.That(vm.DistanceProjection, Is.Not.Null);
@@ -105,9 +105,9 @@ public class GoalsAnalyticsServiceTests
         };
 
         _stravaMock.Setup(s => s.GetAllActivitiesAsync()).ReturnsAsync(activities);
-        _goalsMock.Setup(g => g.LoadAsync()).ReturnsAsync(goalsData);
+        _goalsMock.Setup(g => g.LoadAsync(It.IsAny<long>())).ReturnsAsync(goalsData);
 
-        var vm = await _sut.BuildGoalsViewModelAsync();
+        var vm = await _sut.BuildGoalsViewModelAsync(123);
 
         Assert.That(vm.ChallengeProgressList, Has.Count.EqualTo(1));
         Assert.That(vm.ChallengeProgressList[0].EarnedKm, Is.EqualTo(50.0).Within(0.1));

@@ -13,7 +13,7 @@ public class GoalsAnalyticsService : IGoalsAnalyticsService
         _goals = goals;
     }
 
-    public async Task<GoalsViewModel> BuildGoalsViewModelAsync()
+    public async Task<GoalsViewModel> BuildGoalsViewModelAsync(long athleteId)
     {
         var all = await _strava.GetAllActivitiesAsync();
         var rides = all.Where(a => SportTypes.IsRide(a.SportType)).ToList();
@@ -24,7 +24,7 @@ public class GoalsAnalyticsService : IGoalsAnalyticsService
         double elevM = yearRides.Sum(a => (double)a.TotalElevationGain);
         int rideCount = yearRides.Count;
 
-        var data = await _goals.LoadAsync();
+        var data = await _goals.LoadAsync(athleteId);
         var goals = data.AnnualGoals.FirstOrDefault(g => g.Year == year)
             ?? new AnnualGoals { Year = year };
 
