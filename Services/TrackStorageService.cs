@@ -26,7 +26,10 @@ public class TrackStorageService : ITrackStorageService
         }
     }
 
-    public async Task<TrackSummary> UploadTrackAsync(Stream gpxStream, TrackSummary summary, CancellationToken ct = default)
+    private static string GpxBlobPath(long athleteId, string trackId) => $"{athleteId}/{trackId}.gpx";
+    private static string MetaBlobPath(long athleteId, string trackId) => $"{athleteId}/{trackId}.json";
+
+    public async Task<TrackSummary> UploadTrackAsync(Stream gpxStream, TrackSummary summary, long athleteId, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(gpxStream);
         ArgumentNullException.ThrowIfNull(summary);
@@ -34,27 +37,30 @@ public class TrackStorageService : ITrackStorageService
         if (_containerClient == null)
             throw new InvalidOperationException("Blob storage is not configured.");
 
-        var gpxBlob = _containerClient.GetBlobClient($"{summary.Id}.gpx");
+        summary.AthleteId = athleteId;
+
+        var gpxBlob = _containerClient.GetBlobClient(GpxBlobPath(athleteId, summary.Id));
         await gpxBlob.UploadAsync(gpxStream, overwrite: true, cancellationToken: ct);
 
-        var metaBlob = _containerClient.GetBlobClient($"{summary.Id}.json");
+        var metaBlob = _containerClient.GetBlobClient(MetaBlobPath(athleteId, summary.Id));
         var json = JsonSerializer.Serialize(summary, JsonOptions);
         using var metaStream = new MemoryStream(Encoding.UTF8.GetBytes(json));
         await metaBlob.UploadAsync(metaStream, overwrite: true, cancellationToken: ct);
 
-        _logger.LogInformation("Uploaded track {TrackId} ({ActivityType}, {DistanceKm:F1} km)",
-            summary.Id, summary.ActivityType, summary.DistanceKm);
+        _logger.LogInformation("Uploaded track {TrackId} for athlete {AthleteId} ({ActivityType}, {DistanceKm:F1} km)",
+            summary.Id, athleteId, summary.ActivityType, summary.DistanceKm);
 
         return summary;
     }
 
-    public async Task<IReadOnlyList<TrackSummary>> ListTracksAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<TrackSummary>> ListTracksAsync(long athleteId, CancellationToken ct = default)
     {
         if (_containerClient == null)
             return Array.Empty<TrackSummary>();
 
+        var prefix = $"{athleteId}/";
         var summaries = new List<TrackSummary>();
-        await foreach (var blob in _containerClient.GetBlobsAsync(cancellationToken: ct))
+        await foreach (var blob in _containerClient.GetBlobsAsync(traits: Azure.Storage.Blobs.Models.BlobTraits.None, states: Azure.Storage.Blobs.Models.BlobStates.None, prefix: prefix, cancellationToken: ct))
         {
             if (!blob.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                 continue;
@@ -76,7 +82,7 @@ public class TrackStorageService : ITrackStorageService
         return summaries.OrderByDescending(s => s.StartedAt).ToList();
     }
 
-    public async Task<TrackSummary?> GetTrackSummaryAsync(string id, CancellationToken ct = default)
+    public async Task<TrackSummary?> GetTrackSummaryAsync(long athleteId, string id, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
@@ -85,7 +91,7 @@ public class TrackStorageService : ITrackStorageService
 
         try
         {
-            var blobClient = _containerClient.GetBlobClient($"{id}.json");
+            var blobClient = _containerClient.GetBlobClient(MetaBlobPath(athleteId, id));
             var response = await blobClient.DownloadContentAsync(cancellationToken: ct);
             return JsonSerializer.Deserialize<TrackSummary>(response.Value.Content.ToString(), JsonOptions);
         }
@@ -100,28 +106,97 @@ public class TrackStorageService : ITrackStorageService
         }
     }
 
-    public async Task DeleteTrackAsync(string id, CancellationToken ct = default)
+    public async Task DeleteTrackAsync(long athleteId, string id, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
         if (_containerClient == null)
             throw new InvalidOperationException("Blob storage is not configured.");
 
-        await _containerClient.GetBlobClient($"{id}.gpx").DeleteIfExistsAsync(cancellationToken: ct);
-        await _containerClient.GetBlobClient($"{id}.json").DeleteIfExistsAsync(cancellationToken: ct);
+        await _containerClient.GetBlobClient(GpxBlobPath(athleteId, id)).DeleteIfExistsAsync(cancellationToken: ct);
+        await _containerClient.GetBlobClient(MetaBlobPath(athleteId, id)).DeleteIfExistsAsync(cancellationToken: ct);
 
-        _logger.LogInformation("Deleted track {TrackId}", id);
+        _logger.LogInformation("Deleted track {TrackId} for athlete {AthleteId}", id, athleteId);
     }
 
-    public async Task<Stream> GetTrackGpxAsync(string id, CancellationToken ct = default)
+    public async Task<Stream> GetTrackGpxAsync(long athleteId, string id, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
         if (_containerClient == null)
             throw new InvalidOperationException("Blob storage is not configured.");
 
-        var blobClient = _containerClient.GetBlobClient($"{id}.gpx");
+        var blobClient = _containerClient.GetBlobClient(GpxBlobPath(athleteId, id));
         var response = await blobClient.DownloadStreamingAsync(cancellationToken: ct);
         return response.Value.Content;
+    }
+
+    public async Task MigrateToAthletePathsAsync(long ownerAthleteId, CancellationToken ct = default)
+    {
+        if (_containerClient == null)
+        {
+            _logger.LogInformation("Blob storage not configured — skipping track migration");
+            return;
+        }
+
+        var migratedCount = 0;
+        var rootJsonBlobs = new List<string>();
+
+        await foreach (var blob in _containerClient.GetBlobsAsync(cancellationToken: ct))
+        {
+            if (blob.Name.Contains('/'))
+                continue;
+            if (blob.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                rootJsonBlobs.Add(blob.Name);
+        }
+
+        if (rootJsonBlobs.Count == 0)
+        {
+            _logger.LogInformation("No root-level track blobs to migrate");
+            return;
+        }
+
+        _logger.LogInformation("Found {Count} root-level track blobs to migrate to athlete {AthleteId}", rootJsonBlobs.Count, ownerAthleteId);
+
+        foreach (var jsonBlobName in rootJsonBlobs)
+        {
+            var trackId = jsonBlobName[..^5]; // strip .json
+            var gpxBlobName = $"{trackId}.gpx";
+
+            try
+            {
+                // Migrate JSON metadata — update AthleteId field
+                var jsonSource = _containerClient.GetBlobClient(jsonBlobName);
+                var jsonResponse = await jsonSource.DownloadContentAsync(cancellationToken: ct);
+                var summary = JsonSerializer.Deserialize<TrackSummary>(jsonResponse.Value.Content.ToString(), JsonOptions);
+                if (summary != null)
+                {
+                    summary.AthleteId = ownerAthleteId;
+                    var updatedJson = JsonSerializer.Serialize(summary, JsonOptions);
+                    var jsonDest = _containerClient.GetBlobClient(MetaBlobPath(ownerAthleteId, trackId));
+                    using var metaStream = new MemoryStream(Encoding.UTF8.GetBytes(updatedJson));
+                    await jsonDest.UploadAsync(metaStream, overwrite: true, cancellationToken: ct);
+                    await jsonSource.DeleteIfExistsAsync(cancellationToken: ct);
+                }
+
+                // Migrate GPX file via copy
+                var gpxSource = _containerClient.GetBlobClient(gpxBlobName);
+                if (await gpxSource.ExistsAsync(ct))
+                {
+                    var gpxDest = _containerClient.GetBlobClient(GpxBlobPath(ownerAthleteId, trackId));
+                    await gpxDest.StartCopyFromUriAsync(gpxSource.Uri, cancellationToken: ct);
+                    await gpxSource.DeleteIfExistsAsync(cancellationToken: ct);
+                }
+
+                migratedCount++;
+                _logger.LogInformation("Migrated track {TrackId} to athlete path {AthleteId}/{TrackId}", trackId, ownerAthleteId, trackId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to migrate track {TrackId}", trackId);
+            }
+        }
+
+        _logger.LogInformation("Track migration complete. Migrated {Count} tracks to athlete {AthleteId}", migratedCount, ownerAthleteId);
     }
 }

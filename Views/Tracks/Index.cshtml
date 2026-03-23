@@ -70,6 +70,7 @@ else
                         <form asp-controller="Tracks" asp-action="Delete" asp-route-id="@track.Id"
                               method="post" class="d-inline"
                               onsubmit="return confirm('Delete this track?')">
+                            @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger">
                                 <i class="bi bi-trash"></i>
                             </button>

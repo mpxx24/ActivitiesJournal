@@ -40,6 +40,7 @@
                                 <span class="d-flex align-items-center gap-2">
                                     <span class="text-muted">@Model.CurrentDistanceKm.ToString("0.0") / @Model.Goals.DistanceGoalKm.Value.ToString("0") km</span>
                                     <form method="post" asp-action="ClearGoal" class="d-inline">
+                                        @Html.AntiForgeryToken()
                                         <input type="hidden" name="field" value="distance" />
                                         <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Remove goal"><i class="bi bi-x-lg"></i></button>
                                     </form>
@@ -59,6 +60,7 @@
                                 <span class="d-flex align-items-center gap-2">
                                     <span class="text-muted">@Model.CurrentElevationM.ToString("0") / @Model.Goals.ElevationGoalM.Value.ToString("0") m</span>
                                     <form method="post" asp-action="ClearGoal" class="d-inline">
+                                        @Html.AntiForgeryToken()
                                         <input type="hidden" name="field" value="elevation" />
                                         <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Remove goal"><i class="bi bi-x-lg"></i></button>
                                     </form>
@@ -78,6 +80,7 @@
                                 <span class="d-flex align-items-center gap-2">
                                     <span class="text-muted">@Model.CurrentRides / @Model.Goals.RidesGoal.Value</span>
                                     <form method="post" asp-action="ClearGoal" class="d-inline">
+                                        @Html.AntiForgeryToken()
                                         <input type="hidden" name="field" value="rides" />
                                         <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Remove goal"><i class="bi bi-x-lg"></i></button>
                                     </form>
@@ -94,6 +97,7 @@
 
             <div class="collapse mt-3" id="editGoals">
                 <form method="post" asp-action="SaveGoals" class="row g-3 align-items-end">
+                    @Html.AntiForgeryToken()
                     <div class="col-md-3">
                         <label class="form-label text-muted small">Distance goal (km)</label>
                         <input type="number" name="distanceGoalKm" class="form-control form-control-sm bg-dark text-light border-secondary"
@@ -128,6 +132,7 @@
         <div class="card-body">
             <div class="collapse mb-3" id="addChallenge">
                 <form method="post" asp-action="AddChallenge" class="row g-3 align-items-end border rounded p-3">
+                    @Html.AntiForgeryToken()
                     <div class="col-md-4">
                         <label class="form-label text-muted small">Challenge name</label>
                         <input type="text" name="name" class="form-control form-control-sm bg-dark text-light border-secondary" required placeholder="e.g. Ride to Berlin" />
@@ -160,6 +165,7 @@
                                     </h6>
                                     <div class="d-flex gap-1">
                                         <form method="post" asp-action="ResetChallenge" class="d-inline">
+                                            @Html.AntiForgeryToken()
                                             <input type="hidden" name="id" value="@cp.Challenge.Id" />
                                             <button type="submit" class="btn btn-sm btn-outline-secondary p-0 px-1" title="Restart from today">
                                                 <i class="bi bi-arrow-counterclockwise"></i>
@@ -168,6 +174,7 @@
                                         @if (!cp.Challenge.IsPreset)
                                         {
                                             <form method="post" asp-action="DeleteChallenge" class="d-inline">
+                                                @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@cp.Challenge.Id" />
                                                 <button type="submit" class="btn btn-sm btn-outline-danger p-0 px-1" title="Delete">
                                                     <i class="bi bi-trash"></i>

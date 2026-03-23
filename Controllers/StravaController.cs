@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Services;
 using Microsoft.AspNetCore.Authentication;
@@ -27,21 +28,36 @@ public class StravaController : Controller
 
     [Authorize]
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public IActionResult ClearCache(string? returnUrl = null)
     {
         _stravaService.InvalidateCache();
         _logger.LogInformation("Cache cleared manually");
-        return Redirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
+        if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            return Redirect(returnUrl);
+        return Redirect("/");
     }
 
     public IActionResult Authorize()
     {
-        var authUrl = _stravaService.GetAuthorizationUrl();
+        var state = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        TempData["OAuthState"] = state;
+        var authUrl = _stravaService.GetAuthorizationUrl(state);
         return Redirect(authUrl);
     }
 
     public async Task<IActionResult> Callback(string code, string state)
     {
+        var expectedState = TempData["OAuthState"]?.ToString();
+        if (string.IsNullOrEmpty(expectedState) || state != expectedState)
+        {
+            _logger.LogWarning("OAuth state mismatch. Expected: {Expected}, Received: {Received}",
+                expectedState != null ? "[present]" : "[missing]",
+                !string.IsNullOrEmpty(state) ? "[present]" : "[missing]");
+            ViewBag.Error = "Authorization failed. Invalid state parameter.";
+            return View();
+        }
+
         if (string.IsNullOrEmpty(code))
         {
             ViewBag.Error = "Authorization failed. No code received from Strava.";

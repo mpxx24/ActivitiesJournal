@@ -386,8 +386,10 @@ public class StravaService : IStravaService
         }
     }
 
-    public string GetAuthorizationUrl()
+    public string GetAuthorizationUrl(string state)
     {
+        ArgumentException.ThrowIfNullOrEmpty(state);
+
         var redirectUri = string.IsNullOrWhiteSpace(_config.RedirectUri)
             ? "http://localhost:5010/Strava/Callback"
             : _config.RedirectUri;
@@ -397,6 +399,7 @@ public class StravaService : IStravaService
                $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
                $"&response_type=code" +
                $"&approval_prompt=auto" +
-               $"&scope=activity:read_all";
+               $"&scope=activity:read_all" +
+               $"&state={Uri.EscapeDataString(state)}";
     }
 }

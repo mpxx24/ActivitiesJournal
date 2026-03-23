@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using ActivitiesJournal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +27,9 @@ public class ActivitiesController : Controller
         _httpClientFactory = httpClientFactory;
         _memoryCache = memoryCache;
     }
+
+    private long GetAthleteId() =>
+        long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
 
     public async Task<IActionResult> Index(int page = 1, int perPage = 30,
         string? q = null, string? sport = null,
@@ -139,7 +143,7 @@ public class ActivitiesController : Controller
                 return View(new Models.ActivityCompareViewModel());
             }
 
-            var summary = await _trackStorage.GetTrackSummaryAsync(trackId, ct);
+            var summary = await _trackStorage.GetTrackSummaryAsync(GetAthleteId(), trackId, ct);
             if (summary == null)
             {
                 ViewBag.Error = $"Track {trackId} not found.";
@@ -149,7 +153,7 @@ public class ActivitiesController : Controller
             IReadOnlyList<Models.GpxPoint> points = Array.Empty<Models.GpxPoint>();
             try
             {
-                var gpxStream = await _trackStorage.GetTrackGpxAsync(trackId, ct);
+                var gpxStream = await _trackStorage.GetTrackGpxAsync(GetAthleteId(), trackId, ct);
                 var parsed = _trackParser.Parse(gpxStream);
                 points = parsed.Points;
             }

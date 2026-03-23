@@ -27,6 +27,9 @@ public static class ServiceCollectionExtensions
                 options.AccessDeniedPath = "/";
                 options.ExpireTimeSpan = TimeSpan.FromDays(30);
                 options.SlidingExpiration = true;
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                options.Cookie.SameSite = SameSiteMode.Strict;
             });
 
         services.AddHttpContextAccessor();
@@ -50,6 +53,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddSingleton<ITrackStorageService, TrackStorageService>();
         services.AddSingleton<ITrackParserService, TrackParserService>();
+        services.AddHostedService<TrackMigrationService>();
 
         return services;
     }

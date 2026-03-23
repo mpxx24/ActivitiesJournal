@@ -1,8 +1,11 @@
+using System.Security.Claims;
+using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Filters;
 using ActivitiesJournal.Models;
 using ActivitiesJournal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace ActivitiesJournal.Controllers;
 
@@ -11,21 +14,27 @@ public class TracksController : Controller
 {
     private readonly ITrackStorageService _trackStorage;
     private readonly ITrackParserService _trackParser;
+    private readonly TrackOwnerOptions _ownerOptions;
     private readonly ILogger<TracksController> _logger;
 
     public TracksController(
         ITrackStorageService trackStorage,
         ITrackParserService trackParser,
+        IOptions<TrackOwnerOptions> ownerOptions,
         ILogger<TracksController> logger)
     {
         _trackStorage = trackStorage;
         _trackParser = trackParser;
+        _ownerOptions = ownerOptions.Value;
         _logger = logger;
     }
 
+    private long GetAthleteId() =>
+        long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
+
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        var tracks = await _trackStorage.ListTracksAsync(ct);
+        var tracks = await _trackStorage.ListTracksAsync(GetAthleteId(), ct);
         return View(tracks);
     }
 
@@ -34,7 +43,7 @@ public class TracksController : Controller
         if (string.IsNullOrEmpty(id))
             return BadRequest();
 
-        var summary = await _trackStorage.GetTrackSummaryAsync(id, ct);
+        var summary = await _trackStorage.GetTrackSummaryAsync(GetAthleteId(), id, ct);
         if (summary == null)
             return NotFound();
 
@@ -49,7 +58,7 @@ public class TracksController : Controller
 
         try
         {
-            var gpxStream = await _trackStorage.GetTrackGpxAsync(id, ct);
+            var gpxStream = await _trackStorage.GetTrackGpxAsync(GetAthleteId(), id, ct);
             var parsed = _trackParser.Parse(gpxStream);
             return Json(parsed.Points.Select(p => new { lat = p.Latitude, lon = p.Longitude, ele = p.Elevation }));
         }
@@ -60,12 +69,13 @@ public class TracksController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(id))
             return BadRequest();
 
-        await _trackStorage.DeleteTrackAsync(id, ct);
+        await _trackStorage.DeleteTrackAsync(GetAthleteId(), id, ct);
         return RedirectToAction("Index");
     }
 
@@ -106,7 +116,7 @@ public class TracksController : Controller
         };
 
         buffer.Position = 0;
-        await _trackStorage.UploadTrackAsync(buffer, summary, ct);
+        await _trackStorage.UploadTrackAsync(buffer, summary, _ownerOptions.OwnerAthleteId, ct);
 
         return Json(summary);
     }

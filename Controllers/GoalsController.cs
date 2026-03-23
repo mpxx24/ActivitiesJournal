@@ -39,6 +39,7 @@ public class GoalsController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveGoals(double? distanceGoalKm, double? elevationGoalM, int? ridesGoal)
     {
         var athleteId = GetAthleteId();
@@ -58,6 +59,7 @@ public class GoalsController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> ClearGoal(string field)
     {
         var athleteId = GetAthleteId();
@@ -75,6 +77,7 @@ public class GoalsController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddChallenge(string name, double targetKm, DateTime startDate)
     {
         var athleteId = GetAthleteId();
@@ -85,6 +88,7 @@ public class GoalsController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteChallenge(string id)
     {
         var athleteId = GetAthleteId();
@@ -97,6 +101,7 @@ public class GoalsController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> ResetChallenge(string id)
     {
         var athleteId = GetAthleteId();

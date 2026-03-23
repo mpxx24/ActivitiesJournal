@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using ActivitiesJournal.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -18,8 +20,15 @@ public class RequireApiKeyFilter : IActionFilter
     public void OnActionExecuting(ActionExecutingContext context)
     {
         var provided = context.HttpContext.Request.Headers[ApiKeyHeader].FirstOrDefault();
-        if (string.IsNullOrEmpty(provided) ||
-            !string.Equals(provided, _options.UploadApiKey, StringComparison.Ordinal))
+        if (string.IsNullOrEmpty(provided) || string.IsNullOrEmpty(_options.UploadApiKey))
+        {
+            context.Result = new UnauthorizedResult();
+            return;
+        }
+
+        var providedHash = SHA256.HashData(Encoding.UTF8.GetBytes(provided));
+        var expectedHash = SHA256.HashData(Encoding.UTF8.GetBytes(_options.UploadApiKey));
+        if (!CryptographicOperations.FixedTimeEquals(providedHash, expectedHash))
         {
             context.Result = new UnauthorizedResult();
         }

@@ -4,9 +4,10 @@ namespace ActivitiesJournal.Services;
 
 public interface ITrackStorageService
 {
-    Task<TrackSummary> UploadTrackAsync(Stream gpxStream, TrackSummary summary, CancellationToken ct = default);
-    Task<IReadOnlyList<TrackSummary>> ListTracksAsync(CancellationToken ct = default);
-    Task<TrackSummary?> GetTrackSummaryAsync(string id, CancellationToken ct = default);
-    Task<Stream> GetTrackGpxAsync(string id, CancellationToken ct = default);
-    Task DeleteTrackAsync(string id, CancellationToken ct = default);
+    Task<TrackSummary> UploadTrackAsync(Stream gpxStream, TrackSummary summary, long athleteId, CancellationToken ct = default);
+    Task<IReadOnlyList<TrackSummary>> ListTracksAsync(long athleteId, CancellationToken ct = default);
+    Task<TrackSummary?> GetTrackSummaryAsync(long athleteId, string id, CancellationToken ct = default);
+    Task<Stream> GetTrackGpxAsync(long athleteId, string id, CancellationToken ct = default);
+    Task DeleteTrackAsync(long athleteId, string id, CancellationToken ct = default);
+    Task MigrateToAthletePathsAsync(long ownerAthleteId, CancellationToken ct = default);
 }
