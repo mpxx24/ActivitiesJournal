@@ -1,0 +1,76 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Activities Journal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
+    <style>
+        body {
+            background: #0d1117;
+            color: #e5e7eb;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .landing-card {
+            background: #161b22;
+            border: 1px solid rgba(48, 54, 61, 0.8);
+            border-radius: 12px;
+            padding: 3rem 2.5rem;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+        }
+        .landing-card h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .landing-card p {
+            color: #9ca3af;
+            margin-bottom: 2rem;
+        }
+        .btn-strava {
+            background: #fc4c02;
+            color: #fff;
+            border: none;
+            font-weight: 600;
+            padding: 0.65rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background 0.2s;
+        }
+        .btn-strava:hover {
+            background: #e04400;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="landing-card">
+        <div class="mb-3">
+            <i class="bi bi-activity text-warning" style="font-size: 2.5rem;"></i>
+        </div>
+        <h1>Activities Journal</h1>
+        <p>Your personal activity dashboard powered by Strava. View analytics, track goals, and explore your training history.</p>
+        <a href="/Strava/Authorize" class="btn-strava">
+            <i class="bi bi-link-45deg"></i>
+            Sign in with Strava
+        </a>
+    </div>
+</body>
+</html>

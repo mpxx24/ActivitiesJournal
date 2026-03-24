@@ -18,8 +18,12 @@ public class HomeController : Controller
         _dashboardService = dashboardService;
     }
 
+    [AllowAnonymous]
     public async Task<IActionResult> Index()
     {
+        if (User.Identity?.IsAuthenticated != true)
+            return View("Landing");
+
         try
         {
             var vm = await _dashboardService.BuildDashboardAsync();
