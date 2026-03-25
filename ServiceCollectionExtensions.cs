@@ -55,6 +55,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITrackStorageService, TrackStorageService>();
         services.AddSingleton<ITrackParserService, TrackParserService>();
         services.AddHostedService<TrackMigrationService>();
+        services.AddHostedService<TokenStoreInitializer>();
 
         return services;
     }

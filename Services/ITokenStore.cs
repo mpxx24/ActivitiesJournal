@@ -6,4 +6,5 @@ public interface ITokenStore
     void Set(long athleteId, string accessToken, string refreshToken);
     DateTime? GetCacheTimestamp(long athleteId);
     void SetCacheTimestamp(long athleteId, DateTime? timestamp);
+    Task LoadAllFromBlobAsync();
 }
