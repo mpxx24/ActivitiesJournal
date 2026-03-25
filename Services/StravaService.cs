@@ -14,6 +14,7 @@ public class StravaService : IStravaService
     private readonly HttpClient _httpClient;
     private readonly IMemoryCache _cache;
     private readonly ISegmentPolylineCacheService _segmentPolylineCache;
+    private readonly IActivityCacheService _activityCache;
     private readonly ITokenStore _tokenStore;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<StravaService> _logger;
@@ -34,6 +35,7 @@ public class StravaService : IStravaService
         HttpClient httpClient,
         IMemoryCache cache,
         ISegmentPolylineCacheService segmentPolylineCache,
+        IActivityCacheService activityCache,
         ITokenStore tokenStore,
         IHttpContextAccessor httpContextAccessor,
         ILogger<StravaService> logger)
@@ -42,6 +44,7 @@ public class StravaService : IStravaService
         _httpClient = httpClient;
         _cache = cache;
         _segmentPolylineCache = segmentPolylineCache;
+        _activityCache = activityCache;
         _tokenStore = tokenStore;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
@@ -79,12 +82,12 @@ public class StravaService : IStravaService
         if (_cache.TryGetValue(cacheKey, out List<StravaActivity>? cached) && cached != null)
             return cached;
 
-        var result = await FetchActivitiesAsync(page, perPage);
+        var result = await FetchActivitiesAsync($"athlete/activities?page={page}&per_page={perPage}");
         _cache.Set(cacheKey, result, ListCacheDuration);
         return result;
     }
 
-    private async Task<List<StravaActivity>> FetchActivitiesAsync(int page, int perPage)
+    private async Task<List<StravaActivity>> FetchActivitiesAsync(string relativeUrl)
     {
         try
         {
@@ -97,8 +100,7 @@ public class StravaService : IStravaService
             }
 
             SetAuthHeader();
-            var response = await _httpClient.GetAsync(
-                $"athlete/activities?page={page}&per_page={perPage}");
+            var response = await _httpClient.GetAsync(relativeUrl);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -110,8 +112,7 @@ public class StravaService : IStravaService
                 {
                     _logger.LogWarning("Access token expired, attempting to refresh...");
                     await RefreshAccessTokenAsync();
-                    response = await _httpClient.GetAsync(
-                        $"athlete/activities?page={page}&per_page={perPage}");
+                    response = await _httpClient.GetAsync(relativeUrl);
 
                     if (!response.IsSuccessStatusCode)
                     {
@@ -119,6 +120,12 @@ public class StravaService : IStravaService
                         _logger.LogError("Strava API error after refresh: Status {StatusCode}, Response: {ErrorContent}",
                             response.StatusCode, errorContent);
                     }
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    _logger.LogWarning("Strava rate limit exceeded (429). Try again later.");
+                    throw new InvalidOperationException(
+                        "Strava rate limit exceeded. The app has made too many API requests. Please wait a few minutes and try again.");
                 }
                 else if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
                 {
@@ -154,18 +161,54 @@ public class StravaService : IStravaService
         if (_cache.TryGetValue(cacheKey, out List<StravaActivity>? cached) && cached != null)
             return cached;
 
+        var athleteId = GetCurrentAthleteId();
+        var persisted = await _activityCache.GetAsync(athleteId);
+
+        List<StravaActivity> all;
+        if (persisted.Count == 0)
+        {
+            all = await FetchAllFromApiAsync(afterUnix: 0);
+            _logger.LogInformation("Full Strava fetch: {Count} activities for athlete {AthleteId}", all.Count, athleteId);
+        }
+        else
+        {
+            var latestDate = persisted.Max(a => a.StartDate);
+            var afterUnix = new DateTimeOffset(DateTime.SpecifyKind(latestDate, DateTimeKind.Utc)).ToUnixTimeSeconds();
+            var newActivities = await FetchAllFromApiAsync(afterUnix);
+            _logger.LogInformation("Incremental Strava fetch: {Count} new activities for athlete {AthleteId}", newActivities.Count, athleteId);
+
+            if (newActivities.Count > 0)
+            {
+                var newIds = newActivities.Select(a => a.Id).ToHashSet();
+                all = persisted.Where(a => !newIds.Contains(a.Id)).Concat(newActivities).ToList();
+            }
+            else
+            {
+                all = persisted;
+            }
+        }
+
+        await _activityCache.SetAsync(athleteId, all);
+        _cache.Set(cacheKey, all, ListCacheDuration);
+        _tokenStore.SetCacheTimestamp(athleteId, DateTime.Now);
+        return all;
+    }
+
+    private async Task<List<StravaActivity>> FetchAllFromApiAsync(long afterUnix)
+    {
         var all = new List<StravaActivity>();
         int page = 1;
         const int perPage = 200;
         while (true)
         {
-            var batch = await FetchActivitiesAsync(page, perPage);
+            var url = afterUnix > 0
+                ? $"athlete/activities?page={page}&per_page={perPage}&after={afterUnix}"
+                : $"athlete/activities?page={page}&per_page={perPage}";
+            var batch = await FetchActivitiesAsync(url);
             all.AddRange(batch);
             if (batch.Count < perPage) break;
             page++;
         }
-        _cache.Set(cacheKey, all, ListCacheDuration);
-        _tokenStore.SetCacheTimestamp(GetCurrentAthleteId(), DateTime.Now);
         return all;
     }
 
