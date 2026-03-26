@@ -27,7 +27,17 @@
                 <div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
                     <span class="text-muted small" id="draw-distance">0.00 km</span>
                     <span class="text-muted small" id="draw-waypoint-count">0 waypoints</span>
-                    <button class="btn btn-sm btn-outline-info ms-auto" id="btn-locate" title="Centre on my location">
+                    <div class="btn-group ms-auto" role="group" aria-label="Drawing mode">
+                        <input type="radio" class="btn-check" name="draw-mode" id="mode-manual" autocomplete="off" checked>
+                        <label class="btn btn-sm btn-outline-secondary" for="mode-manual">
+                            <i class="bi bi-pencil me-1"></i>Manual
+                        </label>
+                        <input type="radio" class="btn-check" name="draw-mode" id="mode-auto" autocomplete="off">
+                        <label class="btn btn-sm btn-outline-info" for="mode-auto">
+                            <i class="bi bi-magic me-1"></i>Auto Route
+                        </label>
+                    </div>
+                    <button class="btn btn-sm btn-outline-info" id="btn-locate" title="Centre on my location">
                         <i class="bi bi-crosshair"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-secondary" id="btn-undo" disabled>
@@ -35,6 +45,9 @@
                     </button>
                     <button class="btn btn-sm btn-outline-danger" id="btn-clear" disabled>
                         <i class="bi bi-trash me-1"></i>Clear
+                    </button>
+                    <button class="btn btn-sm btn-success d-none" id="btn-generate" disabled>
+                        <i class="bi bi-signpost-split me-1"></i>Generate Route
                     </button>
                 </div>
             </div>
@@ -49,7 +62,7 @@
                             <i class="bi bi-floppy me-1"></i>Save
                         </button>
                     </div>
-                    <div class="form-text text-muted mt-1">Click on the map to add waypoints.</div>
+                    <div class="form-text text-muted mt-1" id="draw-hint">Click on the map to add waypoints.</div>
                 </form>
             </div>
         </div>
@@ -132,6 +145,25 @@
     const markers = [];
     let polyline = null;
 
+    // Auto-route state
+    let mode = 'manual';       // 'manual' | 'auto'
+    let autoPoints = [];       // { lat, lon } — accumulated via points in auto mode
+    let autoMarkers = [];      // corresponding Leaflet markers
+    let autoGenerating = false;
+
+    const hintEl = document.getElementById('draw-hint');
+
+    function setHint(html) {
+        hintEl.innerHTML = html;
+    }
+
+    function autoHint() {
+        const n = autoPoints.length;
+        if (n === 0) return 'Click to add the <strong>start</strong> point.';
+        if (n === 1) return '1 point placed. Click to add via points or the <strong>end</strong> point. Undo to remove last.';
+        return `${n} points placed — hit <strong>Generate Route</strong>, or keep adding via points.`;
+    }
+
     function locateMe() {
         if (!navigator.geolocation) return;
         const btn = document.getElementById('btn-locate');
@@ -167,8 +199,97 @@
     });
 
     map.on('click', function (e) {
-        addWaypoint(e.latlng.lat, e.latlng.lng);
+        if (autoGenerating) return;
+        if (mode === 'manual') {
+            addWaypoint(e.latlng.lat, e.latlng.lng);
+        } else {
+            handleAutoClick(e.latlng.lat, e.latlng.lng);
+        }
     });
+
+    // Mode toggle
+    document.getElementById('mode-manual').addEventListener('change', function () {
+        if (this.checked) switchMode('manual');
+    });
+    document.getElementById('mode-auto').addEventListener('change', function () {
+        if (this.checked) switchMode('auto');
+    });
+
+    function switchMode(newMode) {
+        mode = newMode;
+        clearAll();
+        document.getElementById('btn-generate').classList.toggle('d-none', mode !== 'auto');
+        setHint(mode === 'auto' ? autoHint() : 'Click on the map to add waypoints.');
+    }
+
+    function handleAutoClick(lat, lon) {
+        const isStart = autoPoints.length === 0;
+        const m = L.circleMarker([lat, lon], {
+            radius: 7,
+            color: isStart ? '#198754' : '#0d6efd',
+            fillColor: isStart ? '#198754' : '#0d6efd',
+            fillOpacity: 1
+        }).addTo(map);
+        autoPoints.push({ lat, lon });
+        autoMarkers.push(m);
+        setHint(autoHint());
+        updateControls();
+    }
+
+    async function generateRouteAsync() {
+        autoGenerating = true;
+        setHint('<span class="spinner-border spinner-border-sm me-1"></span>Generating route…');
+        updateControls();
+
+        const params = autoPoints.map(p => `lat=${p.lat}&lon=${p.lon}`).join('&');
+        const url = `/RoutePlanner/GenerateRoute?${params}`;
+
+        try {
+            const resp = await fetch(url);
+            if (!resp.ok) {
+                const e = await resp.json().catch(() => ({}));
+                throw new Error(e.error || `Server error ${resp.status}`);
+            }
+            const data = await resp.json();
+            if (!data.waypoints || data.waypoints.length === 0) throw new Error('No route found');
+
+            // Remove via point markers — route polyline replaces them
+            autoMarkers.forEach(m => map.removeLayer(m));
+            autoMarkers.length = 0;
+            autoPoints.length = 0;
+
+            // Populate waypoints (normalize to uppercase Lat/Lon for server deserialization)
+            waypoints.length = 0;
+            markers.forEach(m => map.removeLayer(m));
+            markers.length = 0;
+
+            data.waypoints.forEach(function (w, i) {
+                waypoints.push({ Lat: w.lat, Lon: w.lon });
+                if (i === 0 || i === data.waypoints.length - 1) {
+                    const isStart = i === 0;
+                    const m = L.circleMarker([w.lat, w.lon], {
+                        radius: 7,
+                        color: isStart ? '#198754' : '#dc3545',
+                        fillColor: isStart ? '#198754' : '#dc3545',
+                        fillOpacity: 1
+                    }).addTo(map);
+                    markers.push(m);
+                }
+            });
+
+            redraw();
+            setHint('Route generated — give it a name and save.');
+        } catch (err) {
+            alert('Could not generate route: ' + err.message + '. Try different points or check your connection.');
+            setHint(autoHint());
+            updateControls();
+        } finally {
+            autoGenerating = false;
+            updateControls();
+        }
+    }
+
+    document.getElementById('btn-generate').addEventListener('click', generateRouteAsync);
 
     function addWaypoint(lat, lon) {
         // Use uppercase keys to match WaypointDto { Lat, Lon } for server-side deserialization
@@ -198,25 +319,56 @@
         document.getElementById('draw-waypoint-count').textContent = waypoints.length + ' waypoint' + (waypoints.length !== 1 ? 's' : '');
         document.getElementById('waypoints-json').value = JSON.stringify(waypoints);
 
-        const hasEnough = waypoints.length >= 2;
-        document.getElementById('btn-undo').disabled = waypoints.length === 0;
-        document.getElementById('btn-clear').disabled = waypoints.length === 0;
-        document.getElementById('btn-save').disabled = !hasEnough;
+        updateControls();
     }
 
-    document.getElementById('btn-undo').addEventListener('click', function () {
-        if (waypoints.length === 0) return;
-        waypoints.pop();
-        const last = markers.pop();
-        map.removeLayer(last);
-        redraw();
-    });
+    function updateControls() {
+        const hasEnough = waypoints.length >= 2;
+        const autoHasPoints = autoPoints.length > 0;
+        document.getElementById('btn-undo').disabled = autoGenerating ||
+            (mode === 'manual' ? waypoints.length === 0 : autoPoints.length === 0);
+        document.getElementById('btn-clear').disabled = autoGenerating ||
+            (waypoints.length === 0 && autoPoints.length === 0);
+        document.getElementById('btn-save').disabled = !hasEnough || autoGenerating;
+        document.getElementById('btn-generate').disabled = autoGenerating || autoPoints.length < 2;
+    }
 
-    document.getElementById('btn-clear').addEventListener('click', function () {
+    function clearAll() {
         waypoints.length = 0;
         markers.forEach(m => map.removeLayer(m));
         markers.length = 0;
-        redraw();
+        if (polyline) { map.removeLayer(polyline); polyline = null; }
+        autoMarkers.forEach(m => map.removeLayer(m));
+        autoMarkers.length = 0;
+        autoPoints.length = 0;
+        autoGenerating = false;
+        document.getElementById('draw-distance').textContent = '0.00 km';
+        document.getElementById('draw-waypoint-count').textContent = '0 waypoints';
+        document.getElementById('waypoints-json').value = '[]';
+        updateControls();
+    }
+
+    document.getElementById('btn-undo').addEventListener('click', function () {
+        if (autoGenerating) return;
+        if (mode === 'auto') {
+            if (autoPoints.length === 0) return;
+            autoPoints.pop();
+            const last = autoMarkers.pop();
+            map.removeLayer(last);
+            setHint(autoHint());
+            updateControls();
+        } else {
+            if (waypoints.length === 0) return;
+            waypoints.pop();
+            const last = markers.pop();
+            map.removeLayer(last);
+            redraw();
+        }
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', function () {
+        clearAll();
+        if (mode === 'auto') setHint(autoHint());
     });
 
     document.getElementById('save-route-form').addEventListener('submit', function (e) {

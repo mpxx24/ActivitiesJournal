@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
         services.Configure<StravaOptions>(configuration.GetSection("Strava"));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
         services.Configure<TrackOwnerOptions>(configuration.GetSection("TrackOwner"));
+        services.Configure<OpenRouteServiceOptions>(configuration.GetSection("OpenRouteService"));
 
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
@@ -45,6 +46,13 @@ public static class ServiceCollectionExtensions
             c.BaseAddress = new Uri("https://archive-api.open-meteo.com/");
             c.Timeout = TimeSpan.FromSeconds(10);
         });
+        services.AddHttpClient("ors", (sp, client) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<OpenRouteServiceOptions>>().Value;
+            client.BaseAddress = new Uri("https://api.openrouteservice.org/");
+            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {opts.ApiKey}");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
 
         services.AddHostedService<AzureBlobStorageInitializer>();
         services.AddSingleton<ISegmentPolylineCacheService, SegmentPolylineCacheService>();
@@ -55,6 +63,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITrackStorageService, TrackStorageService>();
         services.AddSingleton<ITrackParserService, TrackParserService>();
         services.AddSingleton<IRoutePlannerService, RoutePlannerService>();
+        services.AddScoped<IRoutingService, RoutingService>();
         services.AddHostedService<TrackMigrationService>();
         services.AddHostedService<TokenStoreInitializer>();
 

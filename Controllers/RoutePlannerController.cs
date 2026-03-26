@@ -15,15 +15,18 @@ namespace ActivitiesJournal.Controllers;
 public class RoutePlannerController : Controller
 {
     private readonly IRoutePlannerService _routePlanner;
+    private readonly IRoutingService _routingService;
     private readonly TrackOwnerOptions _ownerOptions;
     private readonly ILogger<RoutePlannerController> _logger;
 
     public RoutePlannerController(
         IRoutePlannerService routePlanner,
+        IRoutingService routingService,
         IOptions<TrackOwnerOptions> ownerOptions,
         ILogger<RoutePlannerController> logger)
     {
         _routePlanner = routePlanner;
+        _routingService = routingService;
         _ownerOptions = ownerOptions.Value;
         _logger = logger;
     }
@@ -60,6 +63,23 @@ public class RoutePlannerController : Controller
             return NotFound();
 
         return Json(route.Waypoints.Select(w => new { lat = w.Lat, lon = w.Lon }));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GenerateRoute(
+        [FromQuery] double[] lat,
+        [FromQuery] double[] lon,
+        CancellationToken ct)
+    {
+        if (lat.Length != lon.Length || lat.Length < 2)
+            return BadRequest(new { error = "At least 2 points are required." });
+
+        var points = lat.Zip(lon, (la, lo) => new WaypointDto { Lat = la, Lon = lo }).ToList();
+        var waypoints = await _routingService.GenerateRouteAsync(points, ct);
+        if (waypoints is null)
+            return StatusCode(502, new { error = "Could not generate route. Try different points or check your connection." });
+
+        return Json(new { waypoints });
     }
 
     [HttpPost]

@@ -17,15 +17,18 @@ public class RoutePlannerControllerTests
 {
     private const long TestAthleteId = 99999;
     private Mock<IRoutePlannerService> _service = null!;
+    private Mock<IRoutingService> _routingService = null!;
     private RoutePlannerController _sut = null!;
 
     [SetUp]
     public void SetUp()
     {
         _service = new Mock<IRoutePlannerService>();
+        _routingService = new Mock<IRoutingService>();
         var ownerOptions = Options.Create(new TrackOwnerOptions { OwnerAthleteId = TestAthleteId, UploadApiKey = "test-key" });
         _sut = new RoutePlannerController(
             _service.Object,
+            _routingService.Object,
             ownerOptions,
             NullLogger<RoutePlannerController>.Instance);
 
