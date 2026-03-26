@@ -1,0 +1,88 @@
+@model ActivitiesJournal.Models.RoutePlannerDetailViewModel
+@{
+    ViewData["Title"] = $"Route — {Model.Route.Name}";
+}
+
+<div class="d-flex align-items-center gap-2 mt-3 mb-3">
+    <a asp-controller="RoutePlanner" asp-action="Index" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h2 class="mb-0">
+        <i class="bi bi-map me-2 text-warning"></i>@Model.Route.Name
+    </h2>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center p-3">
+            <div class="fw-bold fs-4">@Model.Route.DistanceKm.ToString("0.00") km</div>
+            <div class="small text-muted">Distance</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center p-3">
+            <div class="fw-bold fs-4">@Model.Route.Waypoints.Count</div>
+            <div class="small text-muted">Waypoints</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center p-3">
+            <div class="fw-bold fs-4">@Model.Route.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</div>
+            <div class="small text-muted">Created</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-dark border-secondary text-center p-3">
+            <div class="fw-bold fs-4">@Model.Route.UpdatedAt.ToLocalTime().ToString("d MMM yyyy")</div>
+            <div class="small text-muted">Updated</div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mb-3">
+    <a asp-controller="RoutePlanner" asp-action="Download" asp-route-id="@Model.Route.Id"
+       class="btn btn-sm btn-outline-info">
+        <i class="bi bi-download me-1"></i>Download GPX
+    </a>
+    <form asp-controller="RoutePlanner" asp-action="Delete" asp-route-id="@Model.Route.Id"
+          method="post" class="d-inline"
+          onsubmit="return confirm('Delete route &quot;@Model.Route.Name&quot;?')">
+        @Html.AntiForgeryToken()
+        <button type="submit" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-trash me-1"></i>Delete
+        </button>
+    </form>
+</div>
+
+<div id="route-map" style="height: 480px; border-radius: 8px; background: #1a1a2e;"></div>
+
+@section Scripts {
+<script>
+    const map = L.map('route-map');
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19
+    }).addTo(map);
+
+    fetch('/RoutePlanner/Points/@Model.Route.Id')
+        .then(r => r.json())
+        .then(points => {
+            if (!points || points.length === 0) {
+                map.setView([51.505, -0.09], 13);
+                return;
+            }
+
+            const latlngs = points.map(p => [p.lat, p.lon]);
+            const polyline = L.polyline(latlngs, { color: '#fd7e14', weight: 4, opacity: 0.9 }).addTo(map);
+            map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+
+            L.circleMarker(latlngs[0], { radius: 8, color: '#198754', fillColor: '#198754', fillOpacity: 1 })
+                .addTo(map).bindPopup('Start');
+
+            L.circleMarker(latlngs[latlngs.length - 1], { radius: 8, color: '#dc3545', fillColor: '#dc3545', fillOpacity: 1 })
+                .addTo(map).bindPopup('Finish');
+        })
+        .catch(() => map.setView([51.505, -0.09], 13));
+</script>
+}

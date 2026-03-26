@@ -1,0 +1,244 @@
+@model ActivitiesJournal.Models.RoutePlannerIndexViewModel
+@{
+    ViewData["Title"] = "Planned Routes";
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2><i class="bi bi-map me-2 text-warning"></i>Planned Routes</h2>
+</div>
+
+@if (TempData["Error"] is string error)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @error
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<div class="row g-4">
+    <!-- Draw new route -->
+    <div class="col-md-8">
+        <div class="card bg-dark border-secondary">
+            <div class="card-header border-secondary">
+                <h5 class="mb-0"><i class="bi bi-pencil me-2 text-info"></i>Draw a new route</h5>
+            </div>
+            <div class="card-body p-2">
+                <div id="draw-map" style="height: 480px; border-radius: 6px; background: #1a1a2e;"></div>
+                <div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
+                    <span class="text-muted small" id="draw-distance">0.00 km</span>
+                    <span class="text-muted small" id="draw-waypoint-count">0 waypoints</span>
+                    <button class="btn btn-sm btn-outline-info ms-auto" id="btn-locate" title="Centre on my location">
+                        <i class="bi bi-crosshair"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="btn-undo" disabled>
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Undo
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" id="btn-clear" disabled>
+                        <i class="bi bi-trash me-1"></i>Clear
+                    </button>
+                </div>
+            </div>
+            <div class="card-footer border-secondary">
+                <form asp-controller="RoutePlanner" asp-action="Save" method="post" id="save-route-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="waypointsJson" id="waypoints-json" value="[]" />
+                    <div class="input-group">
+                        <input type="text" class="form-control bg-dark text-light border-secondary"
+                               name="name" id="route-name" placeholder="Route name" maxlength="100" required />
+                        <button type="submit" class="btn btn-primary" id="btn-save" disabled>
+                            <i class="bi bi-floppy me-1"></i>Save
+                        </button>
+                    </div>
+                    <div class="form-text text-muted mt-1">Click on the map to add waypoints.</div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved routes -->
+    <div class="col-md-4">
+        <div class="card bg-dark border-secondary h-100">
+            <div class="card-header border-secondary">
+                <h5 class="mb-0"><i class="bi bi-list-ul me-2 text-warning"></i>Saved routes</h5>
+            </div>
+            <div class="card-body p-0">
+                @if (!Model.Routes.Any())
+                {
+                    <div class="p-3 text-muted">No routes saved yet. Draw one on the map!</div>
+                }
+                else
+                {
+                    <table class="table table-dark table-hover table-sm align-middle mb-0 small">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th class="text-end">Distance</th>
+                                <th class="text-end">Points</th>
+                                <th>Saved</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var route in Model.Routes)
+                            {
+                                <tr>
+                                    <td class="fw-semibold">@route.Name</td>
+                                    <td class="text-end">@route.DistanceKm.ToString("0.00") km</td>
+                                    <td class="text-end text-muted">@route.Waypoints.Count</td>
+                                    <td class="text-muted">@route.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</td>
+                                    <td class="text-end">
+                                        <a asp-controller="RoutePlanner" asp-action="Detail" asp-route-id="@route.Id"
+                                           class="btn btn-sm btn-outline-secondary me-1" title="View on map">
+                                            <i class="bi bi-map"></i>
+                                        </a>
+                                        <a asp-controller="RoutePlanner" asp-action="Download" asp-route-id="@route.Id"
+                                           class="btn btn-sm btn-outline-info me-1" title="Download GPX">
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                        <form asp-controller="RoutePlanner" asp-action="Delete" asp-route-id="@route.Id"
+                                              method="post" class="d-inline"
+                                              onsubmit="return confirm('Delete route &quot;@route.Name&quot;?')">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // Use last-known position from localStorage, falling back to geolocation, then London
+    const _storedLat = parseFloat(localStorage.getItem('rp_lat') || 'NaN');
+    const _storedLon = parseFloat(localStorage.getItem('rp_lon') || 'NaN');
+    const _initCenter = isNaN(_storedLat) ? [51.505, -0.09] : [_storedLat, _storedLon];
+    const _initZoom   = isNaN(_storedLat) ? 5 : 14;
+
+    const map = L.map('draw-map').setView(_initCenter, _initZoom);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19
+    }).addTo(map);
+
+    const waypoints = [];
+    const markers = [];
+    let polyline = null;
+
+    function locateMe() {
+        if (!navigator.geolocation) return;
+        const btn = document.getElementById('btn-locate');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                const lat = pos.coords.latitude, lon = pos.coords.longitude;
+                map.setView([lat, lon], 15);
+                localStorage.setItem('rp_lat', lat);
+                localStorage.setItem('rp_lon', lon);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-crosshair"></i>';
+            },
+            function () {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-crosshair"></i>';
+            },
+            { timeout: 8000 }
+        );
+    }
+
+    document.getElementById('btn-locate').addEventListener('click', locateMe);
+
+    // Auto-locate on page load
+    locateMe();
+
+    // Persist map center when user pans/zooms
+    map.on('moveend', function () {
+        const c = map.getCenter();
+        localStorage.setItem('rp_lat', c.lat);
+        localStorage.setItem('rp_lon', c.lng);
+    });
+
+    map.on('click', function (e) {
+        addWaypoint(e.latlng.lat, e.latlng.lng);
+    });
+
+    function addWaypoint(lat, lon) {
+        // Use uppercase keys to match WaypointDto { Lat, Lon } for server-side deserialization
+        waypoints.push({ Lat: lat, Lon: lon });
+
+        const marker = L.circleMarker([lat, lon], {
+            radius: 6,
+            color: waypoints.length === 1 ? '#198754' : '#0d6efd',
+            fillColor: waypoints.length === 1 ? '#198754' : '#0d6efd',
+            fillOpacity: 1
+        }).addTo(map);
+        markers.push(marker);
+
+        redraw();
+    }
+
+    function redraw() {
+        if (polyline) { map.removeLayer(polyline); polyline = null; }
+
+        if (waypoints.length > 1) {
+            const latlngs = waypoints.map(w => [w.Lat, w.Lon]);
+            polyline = L.polyline(latlngs, { color: '#fd7e14', weight: 3, opacity: 0.9 }).addTo(map);
+        }
+
+        const dist = computeDistanceKm(waypoints);
+        document.getElementById('draw-distance').textContent = dist.toFixed(2) + ' km';
+        document.getElementById('draw-waypoint-count').textContent = waypoints.length + ' waypoint' + (waypoints.length !== 1 ? 's' : '');
+        document.getElementById('waypoints-json').value = JSON.stringify(waypoints);
+
+        const hasEnough = waypoints.length >= 2;
+        document.getElementById('btn-undo').disabled = waypoints.length === 0;
+        document.getElementById('btn-clear').disabled = waypoints.length === 0;
+        document.getElementById('btn-save').disabled = !hasEnough;
+    }
+
+    document.getElementById('btn-undo').addEventListener('click', function () {
+        if (waypoints.length === 0) return;
+        waypoints.pop();
+        const last = markers.pop();
+        map.removeLayer(last);
+        redraw();
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', function () {
+        waypoints.length = 0;
+        markers.forEach(m => map.removeLayer(m));
+        markers.length = 0;
+        redraw();
+    });
+
+    document.getElementById('save-route-form').addEventListener('submit', function (e) {
+        if (waypoints.length < 2) {
+            e.preventDefault();
+            alert('Add at least 2 waypoints before saving.');
+        }
+    });
+
+    function computeDistanceKm(wps) {
+        if (wps.length < 2) return 0;
+        const R = 6371;
+        let total = 0;
+        for (let i = 0; i < wps.length - 1; i++) {
+            const lat1 = wps[i].Lat * Math.PI / 180;
+            const lat2 = wps[i + 1].Lat * Math.PI / 180;
+            const dLat = (wps[i + 1].Lat - wps[i].Lat) * Math.PI / 180;
+            const dLon = (wps[i + 1].Lon - wps[i].Lon) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+            total += 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+        return total;
+    }
+</script>
+}

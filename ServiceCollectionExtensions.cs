@@ -54,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddSingleton<ITrackStorageService, TrackStorageService>();
         services.AddSingleton<ITrackParserService, TrackParserService>();
+        services.AddSingleton<IRoutePlannerService, RoutePlannerService>();
         services.AddHostedService<TrackMigrationService>();
         services.AddHostedService<TokenStoreInitializer>();
 

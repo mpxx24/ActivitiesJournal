@@ -29,6 +29,7 @@ public class AzureBlobStorageInitializer : IHostedService
         await EnsureContainerAsync(BlobContainerNames.Segments, cancellationToken);
         await EnsureContainerAsync(BlobContainerNames.Activities, cancellationToken);
         await EnsureContainerAsync(BlobContainerNames.Tokens, cancellationToken);
+        await EnsureContainerAsync(BlobContainerNames.PlannedRoutes, cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

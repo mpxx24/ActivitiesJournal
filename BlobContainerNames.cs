@@ -7,4 +7,5 @@ public static class BlobContainerNames
     public const string Segments = "segment-polylines";
     public const string Activities = "strava-activities";
     public const string Tokens = "athlete-tokens";
+    public const string PlannedRoutes = "planned-routes";
 }
