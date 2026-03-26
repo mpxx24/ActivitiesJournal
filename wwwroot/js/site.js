@@ -171,6 +171,32 @@
     }
   }
 
+  function initSidebarCollapse() {
+    var sections = ['analytics', 'history', 'mygps', 'goals'];
+
+    sections.forEach(function (section) {
+      var el = document.getElementById('nav-' + section);
+      if (!el) return;
+
+      var toggle = document.querySelector('[data-bs-target="#nav-' + section + '"]');
+
+      // Auto-expand section containing the active link (overrides saved state)
+      var hasActive = el.querySelector('.sidebar-link.active');
+
+      if (!hasActive && localStorage.getItem('sidebar-' + section) === 'collapsed') {
+        el.classList.remove('show');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      }
+
+      el.addEventListener('hide.bs.collapse', function () {
+        localStorage.setItem('sidebar-' + section, 'collapsed');
+      });
+      el.addEventListener('show.bs.collapse', function () {
+        localStorage.removeItem('sidebar-' + section);
+      });
+    });
+  }
+
   function initThemeToggle() {
     var btn = document.getElementById("theme-toggle");
     var icon = document.getElementById("theme-icon");
@@ -196,6 +222,7 @@
       initActivityMaps();
       initHeatmap();
       initThemeToggle();
+      initSidebarCollapse();
     });
   } else {
     initActivityMaps();
