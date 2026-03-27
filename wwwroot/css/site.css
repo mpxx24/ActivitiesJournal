@@ -306,10 +306,18 @@ body {
 .activity-map,
 .heatmap-map {
   width: 100%;
-  height: 260px;
   border-radius: 0.75rem;
   overflow: hidden;
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
+}
+
+.activity-map {
+  height: 260px;
+}
+
+.heatmap-map {
+  height: calc(100vh - 160px);
+  min-height: 400px;
 }
 
 /* ============================================================
