@@ -1,6 +1,7 @@
 using ActivitiesJournal.Configuration;
 using ActivitiesJournal.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.Extensions.Options;
 
 namespace ActivitiesJournal;
@@ -10,6 +11,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddActivitiesJournalServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddControllersWithViews();
+        services.Configure<RazorViewEngineOptions>(o =>
+            o.ViewLocationFormats.Add("/Views/Activities/{0}" + RazorViewEngine.ViewExtension));
         services.AddMemoryCache();
 
         var appInsightsConnStr = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
@@ -60,6 +63,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGoalsService, GoalsService>();
         services.AddScoped<IGoalsAnalyticsService, GoalsAnalyticsService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IActivityStatsService, ActivityStatsService>();
         services.AddSingleton<ITrackStorageService, TrackStorageService>();
         services.AddSingleton<ITrackParserService, TrackParserService>();
         services.AddSingleton<IRoutePlannerService, RoutePlannerService>();

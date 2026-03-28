@@ -139,6 +139,10 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
           name: 'TrackOwner__UploadApiKey'
           value: '@Microsoft.KeyVault(VaultName=${kvName};SecretName=TrackOwner--UploadApiKey)'
         }
+        {
+          name: 'OpenRouteService__ApiKey'
+          value: '@Microsoft.KeyVault(VaultName=${kvName};SecretName=OpenRouteService--ApiKey)'
+        }
       ]
     }
   }
