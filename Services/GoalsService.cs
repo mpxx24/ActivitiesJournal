@@ -36,8 +36,10 @@ public class GoalsService : IGoalsService
             {
                 var blobClient = _containerClient.GetBlobClient($"goals-{athleteId}.json");
                 var response = await blobClient.DownloadContentAsync();
-                return JsonSerializer.Deserialize<GoalsData>(response.Value.Content.ToString(), JsonOptions)
+                var data = JsonSerializer.Deserialize<GoalsData>(response.Value.Content.ToString(), JsonOptions)
                     ?? SeedDefaults();
+                NormalizePresetStartDates(data);
+                return data;
             }
             catch (Azure.RequestFailedException ex) when (ex.Status == 404)
             {
@@ -55,7 +57,9 @@ public class GoalsService : IGoalsService
         try
         {
             var text = await File.ReadAllTextAsync(filePath);
-            return JsonSerializer.Deserialize<GoalsData>(text, JsonOptions) ?? SeedDefaults();
+            var data = JsonSerializer.Deserialize<GoalsData>(text, JsonOptions) ?? SeedDefaults();
+            NormalizePresetStartDates(data);
+            return data;
         }
         catch (Exception ex)
         {
@@ -84,18 +88,25 @@ public class GoalsService : IGoalsService
     private string GetLocalFilePath(long athleteId) =>
         Path.Combine(_dataDirectory, $"goals-{athleteId}.json");
 
+    internal static void NormalizePresetStartDates(GoalsData data)
+    {
+        foreach (var c in data.Challenges.Where(c => c.IsPreset))
+            c.StartDate = new DateTime(c.StartDate.Year, 1, 1);
+    }
+
     private static GoalsData SeedDefaults()
     {
+        var jan1 = new DateTime(DateTime.Today.Year, 1, 1);
         return new GoalsData
         {
             Challenges = new List<VirtualChallenge>
             {
-                new() { Name = "Tour de France", TargetKm = 3_406, StartDate = DateTime.Today, IsPreset = true },
-                new() { Name = "Giro d'Italia", TargetKm = 3_497, StartDate = DateTime.Today, IsPreset = true },
-                new() { Name = "Vuelta a España", TargetKm = 3_270, StartDate = DateTime.Today, IsPreset = true },
-                new() { Name = "Ride Across Poland (N–S)", TargetKm = 630, StartDate = DateTime.Today, IsPreset = true },
-                new() { Name = "Warsaw → Paris", TargetKm = 1_430, StartDate = DateTime.Today, IsPreset = true },
-                new() { Name = "Warsaw → Rome", TargetKm = 2_100, StartDate = DateTime.Today, IsPreset = true },
+                new() { Name = "Tour de France", TargetKm = 3_406, StartDate = jan1, IsPreset = true },
+                new() { Name = "Giro d'Italia", TargetKm = 3_497, StartDate = jan1, IsPreset = true },
+                new() { Name = "Vuelta a España", TargetKm = 3_270, StartDate = jan1, IsPreset = true },
+                new() { Name = "Ride Across Poland (N–S)", TargetKm = 630, StartDate = jan1, IsPreset = true },
+                new() { Name = "Warsaw → Paris", TargetKm = 1_430, StartDate = jan1, IsPreset = true },
+                new() { Name = "Warsaw → Rome", TargetKm = 2_100, StartDate = jan1, IsPreset = true },
             }
         };
     }

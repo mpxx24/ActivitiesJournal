@@ -108,7 +108,7 @@ public class GoalsController : Controller
         var data = await _goals.LoadAsync(athleteId);
         var ch = data.Challenges.FirstOrDefault(c => c.Id == id);
         if (ch != null)
-            ch.StartDate = DateTime.Today;
+            ch.StartDate = new DateTime(DateTime.Today.Year, 1, 1);
         await _goals.SaveAsync(data, athleteId);
         return RedirectToAction(nameof(Index));
     }

@@ -49,6 +49,16 @@
                 <i class="bi bi-palette me-1"></i>Color by Age
             </a>
         </div>
+        @if (mode == "all")
+        {
+            <div class="d-flex align-items-center gap-2">
+                <label for="heatmap-color-picker" class="text-muted small mb-0">Route color:</label>
+                <input type="color" id="heatmap-color-picker" value="#fd7e14"
+                       class="border-0"
+                       style="width:2.5rem;height:2rem;padding:0;cursor:pointer;background:none;outline:none;border-radius:4px;overflow:hidden"
+                       title="Choose route colour" />
+            </div>
+        }
         @if (mode == "new")
         {
             <span class="text-muted small">

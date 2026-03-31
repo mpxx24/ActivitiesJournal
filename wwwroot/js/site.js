@@ -93,6 +93,8 @@
     });
   }
 
+  var heatmapInstance = null;
+
   function initHeatmap() {
     if (typeof L === "undefined") {
       return;
@@ -101,6 +103,12 @@
     var el = document.getElementById("heatmap-map");
     if (!el) {
       return;
+    }
+
+    // Destroy previous instance if re-initialising (e.g. after colour change)
+    if (heatmapInstance) {
+      heatmapInstance.remove();
+      heatmapInstance = null;
     }
 
     // Try new metadata format first, fall back to old polylines-only
@@ -132,11 +140,21 @@
 
     var allLatLngs = [];
     var map = L.map(el);
+    heatmapInstance = map;
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 18,
       attribution: "&copy; OpenStreetMap contributors",
     }).addTo(map);
+
+    // "all" mode colour — persisted in localStorage, default orange
+    var allRouteColor = localStorage.getItem("heatmapAllColor") || "#fd7e14";
+
+    // Sync colour picker initial value
+    var picker = document.getElementById("heatmap-color-picker");
+    if (picker) {
+      picker.value = allRouteColor;
+    }
 
     activities.forEach(function (act) {
       var encoded = act.p || act;
@@ -159,8 +177,8 @@
         color = ageColor(act.daysAgo || 9999);
         opacity = 0.75; weight = 3;
       } else {
-        // Default "all" mode — uniform green
-        color = "#22c55e"; opacity = 0.65; weight = 3;
+        // "all" mode — user-selected colour
+        color = allRouteColor; opacity = 0.65; weight = 3;
       }
 
       L.polyline(latlngs, { color: color, weight: weight, opacity: opacity }).addTo(map);
@@ -168,6 +186,14 @@
 
     if (allLatLngs.length) {
       map.fitBounds(L.latLngBounds(allLatLngs), { padding: [20, 20] });
+    }
+
+    // Wire up colour picker (only present in "all" mode)
+    if (picker) {
+      picker.addEventListener("change", function () {
+        localStorage.setItem("heatmapAllColor", picker.value);
+        initHeatmap();
+      });
     }
   }
 

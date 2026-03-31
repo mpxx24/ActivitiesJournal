@@ -58,6 +58,7 @@
                 <div class="text-muted small mb-1">Weeks at Target</div>
                 <div class="fw-bold fs-3 text-info">@weeksAbove / @totalWeeks</div>
                 <div class="text-muted small">last @totalWeeks weeks</div>
+                <div class="mt-1 invisible"><span class="badge bg-secondary">&nbsp;</span></div>
             </div>
         </div>
     </div>
@@ -67,6 +68,7 @@
                 <div class="text-muted small mb-1">Compliance</div>
                 <div class="fw-bold fs-3 @(compliance >= 75 ? "text-success" : compliance >= 50 ? "text-warning" : "text-danger")">@compliance%</div>
                 <div class="text-muted small">of weeks hit target</div>
+                <div class="mt-1 invisible"><span class="badge bg-secondary">&nbsp;</span></div>
             </div>
         </div>
     </div>
