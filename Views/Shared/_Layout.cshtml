@@ -78,7 +78,7 @@
                 <a class="@NavClass("Activities", "Index")" asp-controller="Activities" asp-action="Index">
                     <i class="bi bi-list-ul"></i>Activities
                 </a>
-                <a class="@NavClass("Activities", "Summary")" asp-controller="Activities" asp-action="Summary">
+                <a class="@NavClass("ActivityStats", "Summary")" asp-controller="ActivityStats" asp-action="Summary">
                     <i class="bi bi-graph-up-arrow"></i>Summary
                 </a>
                 <a class="@NavClass("Export", null)" asp-controller="Export" asp-action="Index">
@@ -89,40 +89,40 @@
                     Analytics <i class="bi bi-chevron-down sidebar-chevron"></i>
                 </div>
                 <div class="collapse show" id="nav-analytics">
-                <a class="@NavClass("Activities", "WalkAnalytics")" asp-controller="Activities" asp-action="WalkAnalytics">
+                <a class="@NavClass("ActivityHistory", "WalkAnalytics")" asp-controller="ActivityHistory" asp-action="WalkAnalytics">
                     <i class="bi bi-person-walking"></i>Walking
                 </a>
-                <a class="@NavClass("Activities", "Histogram")" asp-controller="Activities" asp-action="Histogram">
+                <a class="@NavClass("ActivityTrends", "Histogram")" asp-controller="ActivityTrends" asp-action="Histogram">
                     <i class="bi bi-bar-chart-steps"></i>Distribution
                 </a>
-                <a class="@NavClass("Activities", "SpeedTrend")" asp-controller="Activities" asp-action="SpeedTrend">
+                <a class="@NavClass("ActivityTrends", "SpeedTrend")" asp-controller="ActivityTrends" asp-action="SpeedTrend">
                     <i class="bi bi-graph-up-arrow"></i>Speed / Pace
                 </a>
-                <a class="@NavClass("Activities", "CadenceTrend")" asp-controller="Activities" asp-action="CadenceTrend">
+                <a class="@NavClass("ActivityTrends", "CadenceTrend")" asp-controller="ActivityTrends" asp-action="CadenceTrend">
                     <i class="bi bi-arrow-repeat"></i>Cadence
                 </a>
-                <a class="@NavClass("Activities", "PersonalRecords")" asp-controller="Activities" asp-action="PersonalRecords">
+                <a class="@NavClass("ActivityStats", "PersonalRecords")" asp-controller="ActivityStats" asp-action="PersonalRecords">
                     <i class="bi bi-trophy"></i>Records
                 </a>
-                <a class="@NavClass("Activities", "Fitness")" asp-controller="Activities" asp-action="Fitness">
+                <a class="@NavClass("ActivityStats", "Fitness")" asp-controller="ActivityStats" asp-action="Fitness">
                     <i class="bi bi-heart-pulse"></i>Fitness
                 </a>
-                <a class="@NavClass("Activities", "ActiveMinutes")" asp-controller="Activities" asp-action="ActiveMinutes">
+                <a class="@NavClass("ActivityHistory", "ActiveMinutes")" asp-controller="ActivityHistory" asp-action="ActiveMinutes">
                     <i class="bi bi-stopwatch"></i>Active Minutes
                 </a>
                 <a class="@NavClass("Activities", "WeatherInsights")" asp-controller="Activities" asp-action="WeatherInsights">
                     <i class="bi bi-thermometer-sun"></i>Weather
                 </a>
-                <a class="@NavClass("Activities", "DistanceProjection")" asp-controller="Activities" asp-action="DistanceProjection">
+                <a class="@NavClass("ActivityTrends", "DistanceProjection")" asp-controller="ActivityTrends" asp-action="DistanceProjection">
                     <i class="bi bi-graph-up-arrow"></i>Projection
                 </a>
-                <a class="@NavClass("Activities", "Analysis")" asp-controller="Activities" asp-action="Analysis">
+                <a class="@NavClass("ActivityStats", "Analysis")" asp-controller="ActivityStats" asp-action="Analysis">
                     <i class="bi bi-pie-chart"></i>Analysis
                 </a>
-                <a class="@NavClass("Activities", "Segments")" asp-controller="Activities" asp-action="Segments">
+                <a class="@NavClass("ActivityStats", "Segments")" asp-controller="ActivityStats" asp-action="Segments">
                     <i class="bi bi-flag"></i>Segments
                 </a>
-                <a class="@NavClass("Activities", "NameAnalysis")" asp-controller="Activities" asp-action="NameAnalysis">
+                <a class="@NavClass("ActivityHistory", "NameAnalysis")" asp-controller="ActivityHistory" asp-action="NameAnalysis">
                     <i class="bi bi-chat-quote"></i>Name Analysis
                 </a>
                 </div>
@@ -131,34 +131,34 @@
                     History <i class="bi bi-chevron-down sidebar-chevron"></i>
                 </div>
                 <div class="collapse show" id="nav-history">
-                <a class="@NavClass("Activities", "RouteLibrary")" asp-controller="Activities" asp-action="RouteLibrary">
+                <a class="@NavClass("ActivityTrends", "RouteLibrary")" asp-controller="ActivityTrends" asp-action="RouteLibrary">
                     <i class="bi bi-signpost-2"></i>Route Library
                 </a>
-                <a class="@NavClass("Activities", "LongestRide")" asp-controller="Activities" asp-action="LongestRide">
+                <a class="@NavClass("ActivityStats", "LongestRide")" asp-controller="ActivityStats" asp-action="LongestRide">
                     <i class="bi bi-trophy-fill"></i>Longest Ride
                 </a>
-                <a class="@NavClass("Activities", "CumulativeDistance")" asp-controller="Activities" asp-action="CumulativeDistance">
+                <a class="@NavClass("ActivityTrends", "CumulativeDistance")" asp-controller="ActivityTrends" asp-action="CumulativeDistance">
                     <i class="bi bi-graph-up"></i>Cumulative Distance
                 </a>
-                <a class="@NavClass("Activities", "Timeline")" asp-controller="Activities" asp-action="Timeline">
+                <a class="@NavClass("ActivityHistory", "Timeline")" asp-controller="ActivityHistory" asp-action="Timeline">
                     <i class="bi bi-bar-chart-line"></i>Timeline
                 </a>
-                <a class="@NavClass("Activities", "YearComparison")" asp-controller="Activities" asp-action="YearComparison">
+                <a class="@NavClass("ActivityStats", "YearComparison")" asp-controller="ActivityStats" asp-action="YearComparison">
                     <i class="bi bi-bar-chart-line"></i>Year vs Year
                 </a>
-                <a class="@NavClass("Activities", "ThisTimeLastYear")" asp-controller="Activities" asp-action="ThisTimeLastYear">
+                <a class="@NavClass("ActivityHistory", "ThisTimeLastYear")" asp-controller="ActivityHistory" asp-action="ThisTimeLastYear">
                     <i class="bi bi-clock-history"></i>This Time Last Year
                 </a>
-                <a class="@NavClass("Activities", "MonthComparison")" asp-controller="Activities" asp-action="MonthComparison">
+                <a class="@NavClass("ActivityHistory", "MonthComparison")" asp-controller="ActivityHistory" asp-action="MonthComparison">
                     <i class="bi bi-bar-chart"></i>Month vs Month
                 </a>
-                <a class="@NavClass("Activities", "Calendar")" asp-controller="Activities" asp-action="Calendar">
+                <a class="@NavClass("ActivityHistory", "Calendar")" asp-controller="ActivityHistory" asp-action="Calendar">
                     <i class="bi bi-calendar3"></i>Calendar
                 </a>
-                <a class="@NavClass("Activities", "DayInHistory")" asp-controller="Activities" asp-action="DayInHistory">
+                <a class="@NavClass("ActivityHistory", "DayInHistory")" asp-controller="ActivityHistory" asp-action="DayInHistory">
                     <i class="bi bi-calendar-event"></i>On This Day
                 </a>
-                <a class="@NavClass("Activities", "YearInReview")" asp-controller="Activities" asp-action="YearInReview">
+                <a class="@NavClass("ActivityStats", "YearInReview")" asp-controller="ActivityStats" asp-action="YearInReview">
                     <i class="bi bi-stars"></i>Year in Review
                 </a>
                 </div>
@@ -188,10 +188,10 @@
                 <a class="@NavClass("Goals", null)" asp-controller="Goals" asp-action="Index">
                     <i class="bi bi-bullseye"></i>Goals &amp; Challenges
                 </a>
-                <a class="@NavClass("Activities", "Badges")" asp-controller="Activities" asp-action="Badges">
+                <a class="@NavClass("ActivityStats", "Badges")" asp-controller="ActivityStats" asp-action="Badges">
                     <i class="bi bi-award"></i>Badges
                 </a>
-                <a class="@NavClass("Activities", "Heatmap")" asp-controller="Activities" asp-action="Heatmap">
+                <a class="@NavClass("ActivityTrends", "Heatmap")" asp-controller="ActivityTrends" asp-action="Heatmap">
                     <i class="bi bi-map"></i>Heatmap
                 </a>
                 </div>
