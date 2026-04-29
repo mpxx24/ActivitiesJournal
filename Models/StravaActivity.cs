@@ -119,7 +119,7 @@ public class StravaActivity
     public float? AverageHeartrate { get; set; }
 
     [JsonPropertyName("max_heartrate")]
-    public int? MaxHeartrate { get; set; }
+    public float? MaxHeartrate { get; set; }
 
     [JsonPropertyName("heartrate_opt_out")]
     public bool HeartrateOptOut { get; set; }
@@ -227,7 +227,7 @@ public class SegmentEffort
     public float? AverageHeartrate { get; set; }
 
     [JsonPropertyName("max_heartrate")]
-    public int? MaxHeartrate { get; set; }
+    public float? MaxHeartrate { get; set; }
 
     [JsonPropertyName("segment")]
     public Segment? Segment { get; set; }
@@ -332,7 +332,7 @@ public class Lap
     public float? AverageHeartrate { get; set; }
 
     [JsonPropertyName("max_heartrate")]
-    public int? MaxHeartrate { get; set; }
+    public float? MaxHeartrate { get; set; }
 
     [JsonPropertyName("lap_index")]
     public int LapIndex { get; set; }
