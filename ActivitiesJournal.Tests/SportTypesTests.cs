@@ -141,4 +141,14 @@ public class SportTypesTests
     {
         Assert.That(Enum.TryParse<ActivityType>(value, out _), Is.True);
     }
+
+    [TestCase(ActivityType.Ride, "ride")]
+    [TestCase(ActivityType.Walk, "walk")]
+    [TestCase(ActivityType.Run, "run")]
+    [TestCase(ActivityType.Swim, "swim")]
+    [TestCase(ActivityType.Football, "soccer")]
+    public void ToStravaUploadType_MapsToStravaLegacyType(ActivityType type, string expected)
+    {
+        Assert.That(SportTypes.ToStravaUploadType(type), Is.EqualTo(expected));
+    }
 }

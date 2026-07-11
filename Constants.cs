@@ -23,6 +23,16 @@ public static class SportTypes
         _ => activities.Where(a => IsRide(a.SportType)).ToList(),
     };
 
+    /// Strava's upload endpoint takes legacy lowercase activity types, not SportType.
+    public static string ToStravaUploadType(ActivityType type) => type switch
+    {
+        ActivityType.Walk => "walk",
+        ActivityType.Run => "run",
+        ActivityType.Swim => "swim",
+        ActivityType.Football => "soccer",
+        _ => "ride",
+    };
+
     public static string TypeLabel(string type) => type switch
     {
         "Walk" => "Walks & Hikes",

@@ -29,6 +29,11 @@ public class StravaService : IStravaService
 
     private record SegmentDetailResponse([property: System.Text.Json.Serialization.JsonPropertyName("map")] SegmentMapDetail? Map);
     private record SegmentMapDetail([property: System.Text.Json.Serialization.JsonPropertyName("polyline")] string? Polyline);
+    private record UploadStatusResponse(
+        [property: System.Text.Json.Serialization.JsonPropertyName("id")] long? Id,
+        [property: System.Text.Json.Serialization.JsonPropertyName("error")] string? Error,
+        [property: System.Text.Json.Serialization.JsonPropertyName("status")] string? Status,
+        [property: System.Text.Json.Serialization.JsonPropertyName("activity_id")] long? ActivityId);
 
     public StravaService(
         IOptions<StravaOptions> config,
@@ -285,11 +290,111 @@ public class StravaService : IStravaService
         }
     }
 
-    public async Task<string> RefreshAccessTokenAsync()
+    public async Task<StravaUploadResult> UploadActivityAsync(
+        long athleteId,
+        Stream gpxStream,
+        string fileName,
+        ActivityType activityType,
+        string? description,
+        string externalId,
+        TimeSpan? pollInterval = null,
+        CancellationToken ct = default)
     {
         try
         {
-            var athleteId = GetCurrentAthleteId();
+            var (accessToken, _) = _tokenStore.Get(athleteId);
+            if (string.IsNullOrEmpty(accessToken))
+                return new StravaUploadResult { Error = $"No Strava access token for athlete {athleteId}." };
+
+            // Buffer the GPX so the multipart body can be rebuilt on token-refresh retry
+            using var buffer = new MemoryStream();
+            await gpxStream.CopyToAsync(buffer, ct);
+            var gpxBytes = buffer.ToArray();
+
+            var response = await PostUploadAsync(gpxBytes, fileName, activityType, description, externalId, accessToken, ct);
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                _logger.LogWarning("Strava upload unauthorized, refreshing token for athlete {AthleteId}", athleteId);
+                accessToken = await RefreshAccessTokenForAthleteAsync(athleteId);
+                response = await PostUploadAsync(gpxBytes, fileName, activityType, description, externalId, accessToken, ct);
+            }
+
+            var content = await response.Content.ReadAsStringAsync(ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Strava upload rejected: Status {StatusCode}, Response: {Content}", response.StatusCode, content);
+                return new StravaUploadResult
+                {
+                    Duplicate = content.Contains("duplicate", StringComparison.OrdinalIgnoreCase),
+                    Error = $"Strava upload rejected ({(int)response.StatusCode}): {content}"
+                };
+            }
+
+            var status = JsonSerializer.Deserialize<UploadStatusResponse>(content);
+            var interval = pollInterval ?? TimeSpan.FromSeconds(1);
+
+            // Strava processes uploads asynchronously — poll until done or error
+            for (var attempt = 0; attempt < 15; attempt++)
+            {
+                if (status == null)
+                    return new StravaUploadResult { Error = "Empty upload status response from Strava." };
+
+                if (!string.IsNullOrEmpty(status.Error))
+                    return new StravaUploadResult
+                    {
+                        Duplicate = status.Error.Contains("duplicate", StringComparison.OrdinalIgnoreCase),
+                        Error = status.Error
+                    };
+
+                if (status.ActivityId is > 0)
+                {
+                    _logger.LogInformation("Strava upload complete: activity {ActivityId} (external id {ExternalId})",
+                        status.ActivityId, externalId);
+                    return new StravaUploadResult { Success = true, StravaActivityId = status.ActivityId };
+                }
+
+                await Task.Delay(interval, ct);
+                using var pollRequest = new HttpRequestMessage(HttpMethod.Get, $"uploads/{status.Id}");
+                pollRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                var pollResponse = await _httpClient.SendAsync(pollRequest, ct);
+                content = await pollResponse.Content.ReadAsStringAsync(ct);
+                status = JsonSerializer.Deserialize<UploadStatusResponse>(content);
+            }
+
+            return new StravaUploadResult { Error = "Timed out waiting for Strava to process the upload." };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading activity to Strava for athlete {AthleteId}", athleteId);
+            return new StravaUploadResult { Error = ex.Message };
+        }
+    }
+
+    private async Task<HttpResponseMessage> PostUploadAsync(
+        byte[] gpxBytes, string fileName, ActivityType activityType,
+        string? description, string externalId, string accessToken, CancellationToken ct)
+    {
+        var form = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(gpxBytes);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/gpx+xml");
+        form.Add(fileContent, "file", fileName);
+        form.Add(new StringContent("gpx"), "data_type");
+        form.Add(new StringContent(externalId), "external_id");
+        form.Add(new StringContent(SportTypes.ToStravaUploadType(activityType)), "activity_type");
+        if (!string.IsNullOrEmpty(description))
+            form.Add(new StringContent(description), "description");
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "uploads") { Content = form };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        return await _httpClient.SendAsync(request, ct);
+    }
+
+    public Task<string> RefreshAccessTokenAsync() => RefreshAccessTokenForAthleteAsync(GetCurrentAthleteId());
+
+    private async Task<string> RefreshAccessTokenForAthleteAsync(long athleteId)
+    {
+        try
+        {
             var (_, refreshToken) = _tokenStore.Get(athleteId);
 
             var requestBody = new Dictionary<string, string>
@@ -442,7 +547,7 @@ public class StravaService : IStravaService
                $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
                $"&response_type=code" +
                $"&approval_prompt=auto" +
-               $"&scope=activity:read_all" +
+               $"&scope=activity:read_all,activity:write" +
                $"&state={Uri.EscapeDataString(state)}";
     }
 }

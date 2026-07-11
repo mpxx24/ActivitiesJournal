@@ -25,6 +25,7 @@ public class TracksControllerDeleteTests
         _sut = new TracksController(
             _storage.Object,
             new Mock<ITrackParserService>().Object,
+            new Mock<IStravaService>().Object,
             ownerOptions,
             NullLogger<TracksController>.Instance);
 

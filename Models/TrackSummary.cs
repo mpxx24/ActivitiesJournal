@@ -9,4 +9,6 @@ public class TrackSummary
     public double DistanceKm { get; set; }
     public TimeSpan Duration { get; set; }
     public int PointCount { get; set; }
+    public long? StravaActivityId { get; set; }
+    public string? StravaUploadStatus { get; set; }
 }

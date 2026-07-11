@@ -193,6 +193,7 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
     private readonly Queue<(HttpStatusCode StatusCode, string Content)> _queue = new();
     private (HttpStatusCode StatusCode, string Content) _default = (HttpStatusCode.OK, "[]");
     public List<string> RecordedUrls { get; } = new();
+    public List<string> RecordedBodies { get; } = new();
 
     public void Enqueue(HttpStatusCode statusCode, string content)
         => _queue.Enqueue((statusCode, content));
@@ -200,19 +201,22 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
     public void SetDefault(HttpStatusCode statusCode, string content)
         => _default = (statusCode, content);
 
-    protected override Task<HttpResponseMessage> SendAsync(
+    protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var url = request.RequestUri?.ToString() ?? string.Empty;
         RecordedUrls.Add(url);
+        RecordedBodies.Add(request.Content == null
+            ? string.Empty
+            : await request.Content.ReadAsStringAsync(cancellationToken));
 
         var (statusCode, content) = _queue.TryDequeue(out var queued)
             ? queued
             : _default;
 
-        return Task.FromResult(new HttpResponseMessage(statusCode)
+        return new HttpResponseMessage(statusCode)
         {
             Content = new StringContent(content)
-        });
+        };
     }
 }
