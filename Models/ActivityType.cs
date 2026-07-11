@@ -4,5 +4,7 @@ public enum ActivityType
 {
     Ride,
     Walk,
-    Football
+    Football,
+    Run,
+    Swim
 }
