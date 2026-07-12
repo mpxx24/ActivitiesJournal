@@ -16,6 +16,7 @@ namespace ActivitiesJournal.Tests;
 public class StravaServiceIncrementalSyncTests
 {
     private Mock<IActivityCacheService> _activityCache = null!;
+    private Mock<ITrackLinkService> _trackLink = null!;
     private Mock<ITokenStore> _tokenStore = null!;
     private Mock<IHttpContextAccessor> _httpContextAccessor = null!;
     private IMemoryCache _memoryCache = null!;
@@ -43,6 +44,7 @@ public class StravaServiceIncrementalSyncTests
             _memoryCache,
             Mock.Of<ISegmentPolylineCacheService>(),
             _activityCache.Object,
+            _trackLink.Object,
             _tokenStore.Object,
             _httpContextAccessor.Object,
             NullLogger<StravaService>.Instance);
@@ -52,6 +54,7 @@ public class StravaServiceIncrementalSyncTests
     public void SetUp()
     {
         _activityCache = new Mock<IActivityCacheService>();
+        _trackLink = new Mock<ITrackLinkService>();
 
         _tokenStore = new Mock<ITokenStore>();
         _tokenStore.Setup(t => t.Get(It.IsAny<long>())).Returns(("access_token", "refresh_token"));
@@ -144,6 +147,48 @@ public class StravaServiceIncrementalSyncTests
         _activityCache.Verify(
             c => c.SetAsync(42, It.Is<List<StravaActivity>>(l => l.Count == 2)),
             Times.Once);
+    }
+
+    [Test]
+    public async Task GetAllActivitiesAsync_NewActivities_ReconcilesTrackLinks()
+    {
+        _activityCache.Setup(c => c.GetAsync(42)).ReturnsAsync(new List<StravaActivity>());
+
+        var activity = new StravaActivity
+        {
+            Id = 7,
+            Name = "Track ride",
+            ExternalId = "track-abc",
+            StartDate = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc)
+        };
+        _httpHandler.Enqueue(HttpStatusCode.OK, JsonSerializer.Serialize(new[] { activity }));
+
+        var sut = CreateSut();
+        await sut.GetAllActivitiesAsync();
+
+        _trackLink.Verify(l => l.ReconcileAsync(
+            42,
+            It.Is<IReadOnlyList<StravaActivity>>(a => a.Any(x => x.Id == 7 && x.ExternalId == "track-abc")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task GetAllActivitiesAsync_NoNewActivities_DoesNotReconcile()
+    {
+        var existing = new StravaActivity
+        {
+            Id = 1,
+            StartDate = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc)
+        };
+        _activityCache.Setup(c => c.GetAsync(42)).ReturnsAsync(new List<StravaActivity> { existing });
+        // Incremental fetch returns [] (default) — nothing new to link.
+
+        var sut = CreateSut();
+        await sut.GetAllActivitiesAsync();
+
+        _trackLink.Verify(l => l.ReconcileAsync(
+            It.IsAny<long>(), It.IsAny<IReadOnlyList<StravaActivity>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Test]

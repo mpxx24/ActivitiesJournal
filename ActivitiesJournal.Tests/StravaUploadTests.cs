@@ -61,6 +61,7 @@ public class StravaUploadTests
             _memoryCache,
             Mock.Of<ISegmentPolylineCacheService>(),
             Mock.Of<IActivityCacheService>(),
+            Mock.Of<ITrackLinkService>(),
             _tokenStore.Object,
             httpContextAccessor.Object,
             NullLogger<StravaService>.Instance);

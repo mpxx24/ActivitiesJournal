@@ -53,6 +53,24 @@ public class TrackStorageService : ITrackStorageService
         return summary;
     }
 
+    public async Task UpdateTrackSummaryAsync(TrackSummary summary, long athleteId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(summary);
+        ArgumentException.ThrowIfNullOrEmpty(summary.Id);
+
+        if (_containerClient == null)
+            throw new InvalidOperationException("Blob storage is not configured.");
+
+        summary.AthleteId = athleteId;
+
+        var metaBlob = _containerClient.GetBlobClient(MetaBlobPath(athleteId, summary.Id));
+        var json = JsonSerializer.Serialize(summary, JsonOptions);
+        using var metaStream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        await metaBlob.UploadAsync(metaStream, overwrite: true, cancellationToken: ct);
+
+        _logger.LogInformation("Updated track metadata {TrackId} for athlete {AthleteId}", summary.Id, athleteId);
+    }
+
     public async Task<IReadOnlyList<TrackSummary>> ListTracksAsync(long athleteId, CancellationToken ct = default)
     {
         if (_containerClient == null)

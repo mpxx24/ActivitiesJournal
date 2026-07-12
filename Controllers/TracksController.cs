@@ -121,13 +121,14 @@ public class TracksController : Controller
         if (uploadToStrava)
         {
             buffer.Position = 0;
+            var externalId = TrackExternalId.ForTrack(summary.Id);
             var stravaResult = await _stravaService.UploadActivityAsync(
                 _ownerOptions.OwnerAthleteId,
                 buffer,
-                $"track-{summary.Id}.gpx",
+                $"{externalId}.gpx",
                 activityType,
                 "Recorded with Track",
-                $"track-{summary.Id}",
+                externalId,
                 ct: ct);
 
             summary.StravaActivityId = stravaResult.StravaActivityId;

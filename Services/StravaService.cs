@@ -15,6 +15,7 @@ public class StravaService : IStravaService
     private readonly IMemoryCache _cache;
     private readonly ISegmentPolylineCacheService _segmentPolylineCache;
     private readonly IActivityCacheService _activityCache;
+    private readonly ITrackLinkService _trackLink;
     private readonly ITokenStore _tokenStore;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<StravaService> _logger;
@@ -41,6 +42,7 @@ public class StravaService : IStravaService
         IMemoryCache cache,
         ISegmentPolylineCacheService segmentPolylineCache,
         IActivityCacheService activityCache,
+        ITrackLinkService trackLink,
         ITokenStore tokenStore,
         IHttpContextAccessor httpContextAccessor,
         ILogger<StravaService> logger)
@@ -50,6 +52,7 @@ public class StravaService : IStravaService
         _cache = cache;
         _segmentPolylineCache = segmentPolylineCache;
         _activityCache = activityCache;
+        _trackLink = trackLink;
         _tokenStore = tokenStore;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
@@ -174,6 +177,7 @@ public class StravaService : IStravaService
         {
             all = await FetchAllFromApiAsync(afterUnix: 0);
             _logger.LogInformation("Full Strava fetch: {Count} activities for athlete {AthleteId}", all.Count, athleteId);
+            await ReconcileTrackLinksAsync(athleteId, all);
         }
         else
         {
@@ -184,6 +188,7 @@ public class StravaService : IStravaService
 
             if (newActivities.Count > 0)
             {
+                await ReconcileTrackLinksAsync(athleteId, newActivities);
                 var newIds = newActivities.Select(a => a.Id).ToHashSet();
                 all = persisted.Where(a => !newIds.Contains(a.Id)).Concat(newActivities).ToList();
             }
@@ -197,6 +202,23 @@ public class StravaService : IStravaService
         _cache.Set(cacheKey, all, ListCacheDuration);
         _tokenStore.SetCacheTimestamp(athleteId, DateTime.Now);
         return all;
+    }
+
+    // Backfill the Track↔Strava link for activities that came from a Track upload
+    // (external_id = track-<id>). Never lets a linking failure break the sync.
+    private async Task ReconcileTrackLinksAsync(long athleteId, IReadOnlyList<StravaActivity> activities)
+    {
+        if (activities.Count == 0)
+            return;
+
+        try
+        {
+            await _trackLink.ReconcileAsync(athleteId, activities);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Track link reconciliation failed for athlete {AthleteId}", athleteId);
+        }
     }
 
     private async Task<List<StravaActivity>> FetchAllFromApiAsync(long afterUnix)
